@@ -1,0 +1,122 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include <Windows.h>
+#include "resource.h"
+/////////////////////////////////////////////////////////////////////////////
+// 日本語 (日本) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_JPN)
+LANGUAGE LANG_JAPANESE, SUBLANG_DEFAULT
+#pragma code_page(932)
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_REMOTE_CONTROL DIALOGEX 0, 0, 87, 336
+STYLE DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU
+EXSTYLE WS_EX_TOOLWINDOW
+CAPTION "リモコン"
+FONT 9, "Meiryo UI", 0, 0, 0x1
+BEGIN
+    PUSHBUTTON      "d",IDC_KEY_D,6,78,24,24
+    PUSHBUTTON      "←",IDC_KEY_LEFT,6,30,24,24
+    PUSHBUTTON      "→",IDC_KEY_RIGHT,54,30,24,24
+    PUSHBUTTON      "↑",IDC_KEY_UP,30,6,24,24
+    PUSHBUTTON      "↓",IDC_KEY_DOWN,30,54,24,24
+    PUSHBUTTON      "決定",IDC_KEY_ENTER,30,30,24,24
+    PUSHBUTTON      "青",IDC_KEY_BLUE,6,108,18,12
+    PUSHBUTTON      "赤",IDC_KEY_RED,24,108,18,12
+    PUSHBUTTON      "緑",IDC_KEY_GREEN,42,108,18,12
+    PUSHBUTTON      "1",IDC_KEY_1,6,126,24,24
+    PUSHBUTTON      "2",IDC_KEY_2,30,126,24,24
+    PUSHBUTTON      "3",IDC_KEY_3,54,126,24,24
+    PUSHBUTTON      "黄",IDC_KEY_YELLOW,60,108,18,12
+    PUSHBUTTON      "戻る",IDC_KEY_BACK,54,78,24,24
+    PUSHBUTTON      "4",IDC_KEY_4,6,150,24,24
+    PUSHBUTTON      "5",IDC_KEY_5,30,150,24,24
+    PUSHBUTTON      "6",IDC_KEY_6,54,150,24,24
+    PUSHBUTTON      "7",IDC_KEY_7,6,174,24,24
+    PUSHBUTTON      "8",IDC_KEY_8,30,174,24,24
+    PUSHBUTTON      "9",IDC_KEY_9,54,174,24,24
+    PUSHBUTTON      "10",IDC_KEY_10,6,198,24,24
+    PUSHBUTTON      "11",IDC_KEY_11,30,198,24,24
+    PUSHBUTTON      "12",IDC_KEY_12,54,198,24,24
+    PUSHBUTTON      "0",IDC_KEY_0,6,222,24,24
+    PUSHBUTTON      "開発者ツール",IDC_KEY_DEVTOOL,6,294,72,18
+    PUSHBUTTON      "再読み込み",IDC_KEY_RELOAD,6,312,72,18
+    CONTROL         "プラグイン有効時に自動起動",IDC_CHECK_AUTOSTART,"Button",BS_AUTOCHECKBOX | BS_MULTILINE | WS_TABSTOP,12,264,60,18
+    GROUPBOX        "設定",IDC_STATIC,6,252,72,40
+END
+
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO
+BEGIN
+    IDD_REMOTE_CONTROL, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 80
+        TOPMARGIN, 6
+        BOTTOMMARGIN, 329
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// AFX_DIALOG_LAYOUT
+//
+
+IDD_REMOTE_CONTROL AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
+#endif    // 日本語 (日本) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+
