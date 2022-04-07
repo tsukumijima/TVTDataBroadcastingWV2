@@ -1,5 +1,10 @@
 ﻿#include "pch.h"
 
+#include <strmif.h>
+#include <control.h>
+#include <dshow.h>
+#include <d3d9.h>
+#include <vmr9.h>
 #define TVTEST_PLUGIN_CLASS_IMPLEMENT
 #include "thirdparty/TVTestPlugin.h"
 #include "resource.h"
@@ -48,6 +53,8 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     HWND hWebViewWnd = nullptr;
     HWND hContainerWnd = nullptr;
     HWND hMessageWnd = nullptr;
+    wil::com_ptr<IBasicVideo> basicVideo;
+    wil::com_ptr<IBaseFilter> vmr9Renderer;
     bool invisible = false;
     RECT videoRect = {};
     TVTest::ServiceInfo currentService = {};
@@ -60,7 +67,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     virtual bool OnCommand(int ID);
     virtual bool OnPluginEnable(bool fEnable);
     virtual void OnFilterGraphInitialized(TVTest::FilterGraphInfo* pInfo);
-    virtual void OnFilterGraphFinalized(TVTest::FilterGraphInfo* pInfo);
+    virtual void OnFilterGraphFinalize(TVTest::FilterGraphInfo* pInfo);
     virtual bool OnStatusItemDraw(TVTest::StatusItemDrawInfo* pInfo);
     virtual bool OnFullscreenChange(bool fFullscreen);
 
@@ -170,7 +177,7 @@ BOOL CALLBACK CDataBroadcastingWV2::WindowMessageCallback(HWND hwnd, UINT uMsg, 
     if (uMsg == WM_SIZE)
     {
         auto pThis = (CDataBroadcastingWV2*)pUserData;
-        if (pThis->hVideoWnd && pThis->hMessageWnd)
+        if (pThis->hContainerWnd && pThis->hMessageWnd)
         {
             if (!pThis->invisible)
             {
@@ -397,20 +404,75 @@ LRESULT CALLBACK CDataBroadcastingWV2::MessageWndProc(HWND hWnd, UINT uMsg, WPAR
 
 void CDataBroadcastingWV2::OnFilterGraphInitialized(TVTest::FilterGraphInfo* pInfo)
 {
-    this->hContainerWnd = FindWindowExW(FindWindowExW(FindWindowExW(this->m_pApp->GetAppWindow(), nullptr, L"TVTest Splitter", nullptr), nullptr, L"TVTest View", nullptr), nullptr, L"TVTest Video Container", nullptr);
-    auto hVideoWnd = GetWindow(hContainerWnd, GW_CHILD);
-    hVideoWnd = GetWindow(hVideoWnd, GW_HWNDLAST);
-    if (hVideoWnd && hVideoWnd == hWebViewWnd)
+    // VMR9
+    if (SUCCEEDED(pInfo->pGraphBuilder->FindFilterByName(L"VMR9", this->vmr9Renderer.put())))
     {
-        hVideoWnd = GetWindow(hVideoWnd, GW_HWNDPREV);
+        auto filterConfig = this->vmr9Renderer.query<IVMRFilterConfig9>();
+        VMR9Mode mode;
+        if (FAILED(filterConfig->GetRenderingMode((DWORD*)&mode)) || mode != VMR9Mode_Windowless)
+        {
+            // VMR9 (Renderless)
+            // TVTest Video Container側の大きさを変えればいいけど字幕の位置も変わってしまうしフルスクリーンも無理なので微妙
+            this->vmr9Renderer = nullptr;
+            this->m_pApp->AddLog(L"VMR9 (Renderless)は非対応", TVTest::LOG_TYPE_WARNING);
+        }
     }
-    this->hVideoWnd = hVideoWnd;
+    // システムデフォルト
+    if (SUCCEEDED(pInfo->pGraphBuilder->QueryInterface(this->basicVideo.put())))
+    {
+        long l, t, w, h;
+        if (FAILED(this->basicVideo->GetDestinationPosition(&l, &t, &w, &h)))
+        {
+            // EVR
+            this->basicVideo = nullptr;
+        }
+    }
+    std::vector<HWND> childWindows;
+    this->hContainerWnd = FindWindowExW(FindWindowExW(FindWindowExW(this->m_pApp->GetAppWindow(), nullptr, L"TVTest Splitter", nullptr), nullptr, L"TVTest View", nullptr), nullptr, L"TVTest Video Container", nullptr);
+    EnumChildWindows(this->hContainerWnd, [](HWND hWnd, LPARAM lParam) -> BOOL {
+        auto childWindows = (std::vector<HWND>*)lParam;
+        childWindows->push_back(hWnd);
+        return true;
+    }, (LPARAM)&childWindows);
+    this->hVideoWnd = nullptr;
+    for (auto it = std::rbegin(childWindows); it != std::rend(childWindows); ++it)
+    {
+        auto hWnd = *it;
+        if (GetParent(hWnd) != this->hContainerWnd)
+        {
+            continue;
+        }
+        WCHAR className[100];
+        if (GetClassNameW(hWnd, className, _countof(className)))
+        {
+            if (!wcscmp(className, L"TVTest Notification Bar"))
+            {
+                continue;
+            }
+            if (hWnd == hWebViewWnd)
+            {
+                continue;
+            }
+            this->hVideoWnd = hWnd;
+        }
+    }
+    if (this->hVideoWnd)
+    {
+        // madVR EVR EVR (Custom Renderer)
+        SetWindowPos(this->hVideoWnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
+    if (this->basicVideo)
+    {
+        this->hVideoWnd = nullptr;
+    }
     this->ResizeVideoWindow();
     SetTimer(this->hMessageWnd, 2, 5000, nullptr);
 }
 
-void CDataBroadcastingWV2::OnFilterGraphFinalized(TVTest::FilterGraphInfo* pInfo)
+void CDataBroadcastingWV2::OnFilterGraphFinalize(TVTest::FilterGraphInfo* pInfo)
 {
+    this->basicVideo = nullptr;
+    this->vmr9Renderer = nullptr;
     this->hVideoWnd = nullptr;
 }
 
@@ -459,6 +521,7 @@ void CDataBroadcastingWV2::InitWebView2()
             this->hWebViewWnd = hWebViewWnd;
             // 動画ウィンドウといい感じに合成させるために必要 (Windows 8以降じゃないと動かないはず)
             SetWindowLongW(hWebViewWnd, GWL_EXSTYLE, GetWindowLongW(hWebViewWnd, GWL_EXSTYLE) | WS_EX_LAYERED);
+            SetWindowPos(hWebViewWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
             auto controller2 = this->webViewController.query<ICoreWebView2Controller2>();
             COREWEBVIEW2_COLOR c = { };
             auto ff = controller2->put_DefaultBackgroundColor(c);
@@ -536,12 +599,6 @@ void CDataBroadcastingWV2::InitWebView2()
 
                         this->invisible = invisible;
                         this->videoRect = r;
-                        auto hVideoWnd = GetWindow(hWebViewWnd, GW_HWNDLAST);
-                        if (hVideoWnd == hWebViewWnd)
-                        {
-                            hVideoWnd = GetWindow(hVideoWnd, GW_HWNDPREV);
-                        }
-                        this->hVideoWnd = hVideoWnd;
                         this->ResizeVideoWindow();
                     }
                     else if (type == "invisible")
@@ -578,7 +635,23 @@ void CDataBroadcastingWV2::ResizeVideoWindow()
     }
     else
     {
-        SetWindowPos(hVideoWnd, HWND_BOTTOM, this->videoRect.left, this->videoRect.top, this->videoRect.right - this->videoRect.left, this->videoRect.bottom - this->videoRect.top, SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS);
+        if (this->videoRect.right - this->videoRect.left && this->videoRect.bottom - this->videoRect.top)
+        {
+            if (this->vmr9Renderer)
+            {
+                auto vmr9WindowlessControl = this->vmr9Renderer.query<IVMRWindowlessControl9>();
+                vmr9WindowlessControl->SetVideoPosition(nullptr, &this->videoRect);
+                // InvalidateRect(this->hContainerWnd, nullptr, true);
+            }
+            else if (this->basicVideo)
+            {
+                this->basicVideo->SetDestinationPosition(this->videoRect.left, this->videoRect.top, this->videoRect.right - this->videoRect.left, this->videoRect.bottom - this->videoRect.top);
+            }
+            else
+            {
+                SetWindowPos(hVideoWnd, HWND_BOTTOM, this->videoRect.left, this->videoRect.top, this->videoRect.right - this->videoRect.left, this->videoRect.bottom - this->videoRect.top, SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS);
+            }
+        }
     }
 }
 
@@ -699,7 +772,7 @@ bool CDataBroadcastingWV2::OnStatusItemDraw(TVTest::StatusItemDrawInfo* pInfo)
 
 bool CDataBroadcastingWV2::OnFullscreenChange(bool fFullscreen)
 {
-    if (this->hVideoWnd && this->hMessageWnd)
+    if (this->hContainerWnd && this->hMessageWnd)
     {
         if (!this->invisible)
         {
