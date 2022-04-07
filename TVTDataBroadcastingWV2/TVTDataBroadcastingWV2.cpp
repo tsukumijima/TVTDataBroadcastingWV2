@@ -16,14 +16,23 @@ using namespace Microsoft::WRL;
 struct Status
 {
     std::wstring url;
-    bool receiving;
-    bool loading;
+    bool receiving = false;
+    bool loading = false;
 };
 
+// Plugins/TVTDataBroadcastingWV2.tvtp
 class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventHandler
 {
+    // Plugins/TVTDataBroadcastingWV2.ini
     std::wstring iniFile;
+    // Plugins/TVTDataBroadcastingWV2/
+    std::wstring baseDirectory;
+    // Plugins/TVTDataBroadcastingWV2/resources/
     std::wstring resourceDirectory;
+    // Plugins/TVTDataBroadcastingWV2/WebView2Data/
+    std::wstring webView2DataDirectory;
+    // Plugins/TVTDataBroadcastingWV2/WebView2/
+    std::wstring webView2Directory;
 
     // 半端なので要改善
     static const size_t PACKET_SIZE = 188;
@@ -56,6 +65,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     virtual bool OnFullscreenChange(bool fFullscreen);
 
     void RestoreVideoWindow();
+    void ResizeVideoWindow();
     void Tune();
     void InitWebView2();
     std::wstring GetIniItem(const wchar_t* key, const wchar_t* def);
@@ -211,7 +221,10 @@ bool CDataBroadcastingWV2::Initialize()
         filename.resize(result);
         std::filesystem::path path(filename);
         path.replace_extension();
-        resourceDirectory = path;
+        baseDirectory = path;
+        resourceDirectory = path / L"resources";
+        webView2DataDirectory = path / L"WebView2Data";
+        webView2Directory = path / L"WebView2";
         path.replace_extension(L".ini");
         iniFile = path;
         break;
@@ -285,6 +298,11 @@ LRESULT CALLBACK CDataBroadcastingWV2::MessageWndProc(HWND hWnd, UINT uMsg, WPAR
         if (wParam == 1)
         {
             SetWindowPos(pThis->hVideoWnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+            KillTimer(hWnd, wParam);
+        }
+        else if (wParam == 2)
+        {
+            pThis->ResizeVideoWindow();
             KillTimer(hWnd, wParam);
         }
         break;
@@ -387,6 +405,8 @@ void CDataBroadcastingWV2::OnFilterGraphInitialized(TVTest::FilterGraphInfo* pIn
         hVideoWnd = GetWindow(hVideoWnd, GW_HWNDPREV);
     }
     this->hVideoWnd = hVideoWnd;
+    this->ResizeVideoWindow();
+    SetTimer(this->hMessageWnd, 2, 5000, nullptr);
 }
 
 void CDataBroadcastingWV2::OnFilterGraphFinalized(TVTest::FilterGraphInfo* pInfo)
@@ -412,12 +432,25 @@ std::wstring utf8StrToWString(const char* s)
 
 void CDataBroadcastingWV2::InitWebView2()
 {
+    LPCWSTR webView2Directory = nullptr;
+    if (std::filesystem::is_directory(std::filesystem::path(this->webView2Directory) / L"EBWebView"))
+    {
+        webView2Directory = this->webView2Directory.c_str();
+    }
     auto options = Microsoft::WRL::Make<CoreWebView2EnvironmentOptions>();
-    CreateCoreWebView2EnvironmentWithOptions(nullptr, nullptr, options.Get(),
+    CreateCoreWebView2EnvironmentWithOptions(webView2Directory, this->webView2DataDirectory.c_str(), options.Get(),
         Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
             [this](HRESULT result, ICoreWebView2Environment* env) -> HRESULT {
         env->CreateCoreWebView2Controller(this->hContainerWnd, Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
             [env, this](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
+            if (FAILED(result))
+            {
+                wchar_t buf[std::numeric_limits<HRESULT>::digits10 + 2]{};
+                _itow_s(result, buf, 16);
+                MessageBoxW(this->m_pApp->GetAppWindow(), (std::wstring(L"WebView2を初期化できませんでした。\nHRESULT = 0x") + buf).c_str(), L"TVTDataBroadcastingWV2", MB_ICONERROR | MB_OK);
+                this->m_pApp->EnablePlugin(false);
+                return S_OK;
+            }
             if (controller != nullptr) {
                 this->webViewController = controller;
                 this->webViewController->get_CoreWebView2(this->webView.put());
@@ -509,27 +542,13 @@ void CDataBroadcastingWV2::InitWebView2()
                             hVideoWnd = GetWindow(hVideoWnd, GW_HWNDPREV);
                         }
                         this->hVideoWnd = hVideoWnd;
-                        if (this->invisible)
-                        {
-                            this->RestoreVideoWindow();
-                        }
-                        else
-                        {
-                            SetWindowPos(hVideoWnd, HWND_BOTTOM, this->videoRect.left, this->videoRect.top, this->videoRect.right - this->videoRect.left, this->videoRect.bottom - this->videoRect.top, SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS);
-                        }
+                        this->ResizeVideoWindow();
                     }
                     else if (type == "invisible")
                     {
                         auto invisible = a["invisible"].get<bool>();
                         this->invisible = invisible;
-                        if (this->invisible)
-                        {
-                            this->RestoreVideoWindow();
-                        }
-                        else
-                        {
-                            SetWindowPos(hVideoWnd, HWND_BOTTOM, this->videoRect.left, this->videoRect.top, this->videoRect.right - this->videoRect.left, this->videoRect.bottom - this->videoRect.top, SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS);
-                        }
+                        this->ResizeVideoWindow();
                     }
                     else if (type == "status")
                     {
@@ -549,6 +568,18 @@ void CDataBroadcastingWV2::InitWebView2()
         }).Get());
         return S_OK;
     }).Get());
+}
+
+void CDataBroadcastingWV2::ResizeVideoWindow()
+{
+    if (this->invisible)
+    {
+        this->RestoreVideoWindow();
+    }
+    else
+    {
+        SetWindowPos(hVideoWnd, HWND_BOTTOM, this->videoRect.left, this->videoRect.top, this->videoRect.right - this->videoRect.left, this->videoRect.bottom - this->videoRect.top, SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS);
+    }
 }
 
 bool CDataBroadcastingWV2::OnPluginEnable(bool fEnable)
