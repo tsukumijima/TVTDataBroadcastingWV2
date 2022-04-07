@@ -43,6 +43,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     virtual bool OnPluginEnable(bool fEnable);
     virtual void OnFilterGraphInitialized(TVTest::FilterGraphInfo* pInfo);
     virtual void OnFilterGraphFinalized(TVTest::FilterGraphInfo* pInfo);
+    virtual bool OnStatusItemDraw(TVTest::StatusItemDrawInfo* pInfo);
 
     void Tune();
     void InitWebView2();
@@ -218,6 +219,21 @@ bool CDataBroadcastingWV2::Initialize()
     m_pApp->RegisterCommand(IDC_KEY_RED, L"RedButton", L"赤");
     m_pApp->RegisterCommand(IDC_KEY_GREEN, L"GreenButton", L"緑");
     m_pApp->RegisterCommand(IDC_KEY_YELLOW, L"YellowButton", L"黄");
+    m_pApp->RegisterCommand(IDC_KEY_RELOAD, L"Reload", L"再読み込み");
+    m_pApp->RegisterCommand(IDC_KEY_DEVTOOL, L"OpenDevTools", L"開発者ツール");
+    m_pApp->RegisterPluginIconFromResource(g_hinstDLL, MAKEINTRESOURCEW(IDB_BITMAP1));
+    TVTest::StatusItemInfo statusItemInfo = {};
+    statusItemInfo.Size = sizeof(statusItemInfo);
+    statusItemInfo.ID = 1;
+    statusItemInfo.Flags = 0;
+    statusItemInfo.Style = TVTest::STATUS_ITEM_STYLE_VARIABLEWIDTH;
+    statusItemInfo.pszIDText = L"DataBroadcastingStatus";
+    statusItemInfo.pszName = L"データ放送ステータス";
+    statusItemInfo.MinWidth = 0;
+    statusItemInfo.MaxWidth = -1;
+    statusItemInfo.DefaultWidth = TVTest::StatusItemWidthByFontSize(10);
+    statusItemInfo.MinHeight = 0;
+    m_pApp->RegisterStatusItem(&statusItemInfo);
     return true;
 }
 
@@ -551,6 +567,23 @@ LRESULT CALLBACK CDataBroadcastingWV2::EventCallback(UINT Event, LPARAM lParam1,
     return pThis->HandleEvent(Event, lParam1, lParam2, pClientData);
 }
 
+bool CDataBroadcastingWV2::OnStatusItemDraw(TVTest::StatusItemDrawInfo* pInfo)
+{
+    std::wstring statusItem;
+    if ((pInfo->Flags & TVTest::STATUS_ITEM_DRAW_FLAG_PREVIEW) == 0) {
+        statusItem = L"123456";
+    }
+    else {
+        statusItem = L"123456";
+    }
+    this->m_pApp->ThemeDrawText(pInfo->pszStyle, pInfo->hdc, statusItem.c_str(),
+        pInfo->DrawRect,
+        DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS,
+        pInfo->Color);
+
+    return true;
+}
+
 bool CDataBroadcastingWV2::OnCommand(int ID)
 {
     if (!this->webView)
@@ -560,76 +593,76 @@ bool CDataBroadcastingWV2::OnCommand(int ID)
     switch (ID)
     {
     case IDC_KEY_D:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":20}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":20})");
         break;
     case IDC_KEY_UP:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":1}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":1})");
         break;
     case IDC_KEY_DOWN:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":2}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":2})");
         break;
     case IDC_KEY_LEFT:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":3}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":3})");
         break;
     case IDC_KEY_RIGHT:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":4}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":4})");
         break;
     case IDC_KEY_ENTER:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":18}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":18})");
         break;
     case IDC_KEY_BACK:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":19}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":19})");
         break;
     case IDC_KEY_0:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":5}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":5})");
         break;
     case IDC_KEY_1:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":6}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":6})");
         break;
     case IDC_KEY_2:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":7}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":7})");
         break;
     case IDC_KEY_3:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":8}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":8})");
         break;
     case IDC_KEY_4:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":9}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":9})");
         break;
     case IDC_KEY_5:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":10}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":10})");
         break;
     case IDC_KEY_6:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":11}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":11})");
         break;
     case IDC_KEY_7:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":12}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":12})");
         break;
     case IDC_KEY_8:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":13}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":13})");
         break;
     case IDC_KEY_9:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":14}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":14})");
         break;
     case IDC_KEY_10:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":15}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":15})");
         break;
     case IDC_KEY_11:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":16}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":16})");
         break;
     case IDC_KEY_12:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":17}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":17})");
         break;
     case IDC_KEY_BLUE:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":21}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":21})");
         break;
     case IDC_KEY_RED:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":22}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":22})");
         break;
     case IDC_KEY_GREEN:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":23}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":23})");
         break;
     case IDC_KEY_YELLOW:
-        this->webView->PostWebMessageAsJson(LR"({"type":"remoteControl","data":{"type":"button","keyCode":24}})");
+        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":24})");
         break;
     case IDC_KEY_DEVTOOL:
         this->webView->OpenDevToolsWindow();
@@ -654,6 +687,11 @@ INT_PTR CALLBACK CDataBroadcastingWV2::RemoteControlDlgProc(HWND hDlg, UINT uMsg
     {
         CDataBroadcastingWV2* pThis = static_cast<CDataBroadcastingWV2*>(pClientData);
         pThis->OnCommand(LOWORD(wParam));
+        return 1;
+    }
+    case WM_CLOSE:
+    {
+        DestroyWindow(hDlg);
         return 1;
     }
     case WM_DESTROY:

@@ -1,5 +1,6 @@
 //{{NO_DEPENDENCIES}}
 #define IDD_REMOTE_CONTROL              101
+#define IDB_BITMAP1                     103
 #define IDC_KEY_D                       1000
 #define IDC_KEY_LEFT                    1001
 #define IDC_KEY_D3                      1002
