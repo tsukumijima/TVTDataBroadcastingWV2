@@ -39,6 +39,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     HWND hWebViewWnd = nullptr;
     HWND hContainerWnd = nullptr;
     HWND hMessageWnd = nullptr;
+    bool invisible = false;
     RECT videoRect = {};
     TVTest::ServiceInfo currentService = {};
     TVTest::ChannelInfo currentChannel = {};
@@ -150,11 +151,14 @@ BOOL CALLBACK CDataBroadcastingWV2::WindowMessageCallback(HWND hwnd, UINT uMsg, 
         auto pThis = (CDataBroadcastingWV2*)pUserData;
         if (pThis->hVideoWnd && pThis->hMessageWnd)
         {
-            // 無理やり動画ウィンドウを移動させている都合上リサイズ時に位置大きさが初期化されてしまうので一時的に非表示にさせる
-            SetWindowPos(pThis->hVideoWnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_HIDEWINDOW);
-            //SetWindowPos(pThis->hVideoWnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOREDRAW | SWP_NOMOVE | SWP_NOSIZE | SWP_HIDEWINDOW);
-            // 実際に動画ウィンドウの大きさが変わるのはメッセージ処理後なのでPostMessageでやり過ごす
-            PostMessageW(pThis->hMessageWnd, WM_APP_RESIZE, 0, 0);
+            if (!pThis->invisible)
+            {
+                // 無理やり動画ウィンドウを移動させている都合上リサイズ時に位置大きさが初期化されてしまうので一時的に非表示にさせる
+                SetWindowPos(pThis->hVideoWnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_HIDEWINDOW);
+                //SetWindowPos(pThis->hVideoWnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOREDRAW | SWP_NOMOVE | SWP_NOSIZE | SWP_HIDEWINDOW);
+                // 実際に動画ウィンドウの大きさが変わるのはメッセージ処理後なのでPostMessageでやり過ごす
+                PostMessageW(pThis->hMessageWnd, WM_APP_RESIZE, 0, 0);
+            } 
         }
     }
     return FALSE;
@@ -480,12 +484,14 @@ void CDataBroadcastingWV2::InitWebView2()
                         auto right = a["right"].get<int>();
                         auto bottom = a["bottom"].get<int>();
                         auto top = a["top"].get<int>();
+                        auto invisible = a["invisible"].get<bool>();
                         RECT r;
                         r.left = left;
                         r.right = right;
                         r.bottom = bottom;
                         r.top = top;
 
+                        this->invisible = invisible;
                         this->videoRect = r;
                         auto hVideoWnd = GetWindow(hWebViewWnd, GW_HWNDLAST);
                         if (hVideoWnd == hWebViewWnd)
@@ -493,7 +499,34 @@ void CDataBroadcastingWV2::InitWebView2()
                             hVideoWnd = GetWindow(hVideoWnd, GW_HWNDPREV);
                         }
                         this->hVideoWnd = hVideoWnd;
-                        SetWindowPos(hVideoWnd, HWND_BOTTOM, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS);
+                        if (this->invisible)
+                        {
+                            if (GetClientRect(hContainerWnd, &r))
+                            {
+                                SetWindowPos(hContainerWnd, nullptr, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS | SWP_NOZORDER);
+                            }
+                        }
+                        else
+                        {
+                            SetWindowPos(hVideoWnd, HWND_BOTTOM, this->videoRect.left, this->videoRect.top, this->videoRect.right - this->videoRect.left, this->videoRect.bottom - this->videoRect.top, SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS);
+                        }
+                    }
+                    else if (type == "invisible")
+                    {
+                        auto invisible = a["invisible"].get<bool>();
+                        this->invisible = invisible;
+                        if (this->invisible)
+                        {
+                            RECT r;
+                            if (GetClientRect(hContainerWnd, &r))
+                            {
+                                PostMessageW(hContainerWnd, WM_SIZE, SIZE_RESTORED, MAKELPARAM(r.right - r.left, r.bottom - r.top));
+                            }
+                        }
+                        else
+                        {
+                            SetWindowPos(hVideoWnd, HWND_BOTTOM, this->videoRect.left, this->videoRect.top, this->videoRect.right - this->videoRect.left, this->videoRect.bottom - this->videoRect.top, SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS);
+                        }
                     }
                     else if (type == "status")
                     {
@@ -588,6 +621,11 @@ void CDataBroadcastingWV2::Tune()
             baseUrl += std::to_wstring(this->currentService.ServiceID);
             if (wcscmp(source.get(), baseUrl.c_str()))
             {
+                RECT r;
+                if (GetClientRect(hContainerWnd, &r))
+                {
+                    PostMessageW(hContainerWnd, WM_SIZE, SIZE_RESTORED, MAKELPARAM(r.right - r.left, r.bottom - r.top));
+                }
                 // FIXME!! packetBufferは廃棄すべき
                 this->webView->Navigate(baseUrl.c_str());
             }
