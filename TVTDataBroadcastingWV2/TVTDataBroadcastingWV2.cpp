@@ -53,7 +53,9 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     virtual void OnFilterGraphInitialized(TVTest::FilterGraphInfo* pInfo);
     virtual void OnFilterGraphFinalized(TVTest::FilterGraphInfo* pInfo);
     virtual bool OnStatusItemDraw(TVTest::StatusItemDrawInfo* pInfo);
+    virtual bool OnFullscreenChange(bool fFullscreen);
 
+    void RestoreVideoWindow();
     void Tune();
     void InitWebView2();
     std::wstring GetIniItem(const wchar_t* key, const wchar_t* def);
@@ -144,6 +146,15 @@ bool CDataBroadcastingWV2::OnServiceUpdate()
     return true;
 }
 
+void CDataBroadcastingWV2::RestoreVideoWindow()
+{
+    RECT r;
+    if (GetClientRect(hContainerWnd, &r))
+    {
+        PostMessageW(hContainerWnd, WM_SIZE, SIZE_RESTORED, MAKELPARAM(r.right - r.left, r.bottom - r.top));
+    }
+}
+
 BOOL CALLBACK CDataBroadcastingWV2::WindowMessageCallback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT* pResult, void* pUserData)
 {
     if (uMsg == WM_SIZE)
@@ -155,10 +166,9 @@ BOOL CALLBACK CDataBroadcastingWV2::WindowMessageCallback(HWND hwnd, UINT uMsg, 
             {
                 // 無理やり動画ウィンドウを移動させている都合上リサイズ時に位置大きさが初期化されてしまうので一時的に非表示にさせる
                 SetWindowPos(pThis->hVideoWnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_HIDEWINDOW);
-                //SetWindowPos(pThis->hVideoWnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOREDRAW | SWP_NOMOVE | SWP_NOSIZE | SWP_HIDEWINDOW);
-                // 実際に動画ウィンドウの大きさが変わるのはメッセージ処理後なのでPostMessageでやり過ごす
-                PostMessageW(pThis->hMessageWnd, WM_APP_RESIZE, 0, 0);
-            } 
+            }
+            // 実際に動画ウィンドウの大きさが変わるのはメッセージ処理後なのでPostMessageでやり過ごす
+            PostMessageW(pThis->hMessageWnd, WM_APP_RESIZE, 0, 0);
         }
     }
     return FALSE;
@@ -501,10 +511,7 @@ void CDataBroadcastingWV2::InitWebView2()
                         this->hVideoWnd = hVideoWnd;
                         if (this->invisible)
                         {
-                            if (GetClientRect(hContainerWnd, &r))
-                            {
-                                SetWindowPos(hContainerWnd, nullptr, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS | SWP_NOZORDER);
-                            }
+                            this->RestoreVideoWindow();
                         }
                         else
                         {
@@ -517,11 +524,7 @@ void CDataBroadcastingWV2::InitWebView2()
                         this->invisible = invisible;
                         if (this->invisible)
                         {
-                            RECT r;
-                            if (GetClientRect(hContainerWnd, &r))
-                            {
-                                PostMessageW(hContainerWnd, WM_SIZE, SIZE_RESTORED, MAKELPARAM(r.right - r.left, r.bottom - r.top));
-                            }
+                            this->RestoreVideoWindow();
                         }
                         else
                         {
@@ -586,6 +589,7 @@ bool CDataBroadcastingWV2::OnPluginEnable(bool fEnable)
     }
     else
     {
+        this->RestoreVideoWindow();
         m_pApp->SetStreamCallback(TVTest::STREAM_CALLBACK_REMOVE, StreamCallback, this);
         m_pApp->SetWindowMessageCallback(nullptr, this);
         if (this->hRemoteWnd)
@@ -621,11 +625,7 @@ void CDataBroadcastingWV2::Tune()
             baseUrl += std::to_wstring(this->currentService.ServiceID);
             if (wcscmp(source.get(), baseUrl.c_str()))
             {
-                RECT r;
-                if (GetClientRect(hContainerWnd, &r))
-                {
-                    PostMessageW(hContainerWnd, WM_SIZE, SIZE_RESTORED, MAKELPARAM(r.right - r.left, r.bottom - r.top));
-                }
+                this->RestoreVideoWindow();
                 // FIXME!! packetBufferは廃棄すべき
                 this->webView->Navigate(baseUrl.c_str());
             }
@@ -663,6 +663,21 @@ bool CDataBroadcastingWV2::OnStatusItemDraw(TVTest::StatusItemDrawInfo* pInfo)
         DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS,
         pInfo->Color);
 
+    return true;
+}
+
+bool CDataBroadcastingWV2::OnFullscreenChange(bool fFullscreen)
+{
+    if (this->hVideoWnd && this->hMessageWnd)
+    {
+        if (!this->invisible)
+        {
+            // 無理やり動画ウィンドウを移動させている都合上リサイズ時に位置大きさが初期化されてしまうので一時的に非表示にさせる
+            SetWindowPos(this->hVideoWnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_HIDEWINDOW);
+        }
+        // 実際に動画ウィンドウの大きさが変わるのはメッセージ処理後なのでPostMessageでやり過ごす
+        PostMessageW(this->hMessageWnd, WM_APP_RESIZE, 0, 0);
+    }
     return true;
 }
 
