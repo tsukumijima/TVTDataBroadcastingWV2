@@ -13,6 +13,13 @@ using namespace Microsoft::WRL;
 #define WM_APP_PACKET (WM_APP + 0)
 #define WM_APP_RESIZE (WM_APP + 1)
 
+struct Status
+{
+    std::wstring url;
+    bool receiving;
+    bool loading;
+};
+
 class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventHandler
 {
     std::wstring iniFile;
@@ -36,6 +43,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     TVTest::ServiceInfo currentService = {};
     TVTest::ChannelInfo currentChannel = {};
     std::unordered_set<WORD> pesPIDList;
+    Status status;
     virtual bool OnChannelChange();
     virtual bool OnServiceChange();
     virtual bool OnServiceUpdate();
@@ -372,6 +380,22 @@ void CDataBroadcastingWV2::OnFilterGraphFinalized(TVTest::FilterGraphInfo* pInfo
     this->hVideoWnd = nullptr;
 }
 
+std::string wstrToUTF8String(const wchar_t* ws)
+{
+    auto size = WideCharToMultiByte(CP_UTF8, 0, ws, -1, nullptr, 0, nullptr, nullptr);
+    std::string result(size, 0);
+    WideCharToMultiByte(CP_UTF8, 0, ws, -1, &result[0], size, nullptr, nullptr);
+    return result;
+}
+
+std::wstring utf8StrToWString(const char* s)
+{
+    auto size = MultiByteToWideChar(CP_UTF8, 0, s, -1, nullptr, 0);
+    std::wstring result(size, 0);
+    MultiByteToWideChar(CP_UTF8, 0, s, -1, &result[0], size);
+    return result;
+}
+
 void CDataBroadcastingWV2::InitWebView2()
 {
     auto options = Microsoft::WRL::Make<CoreWebView2EnvironmentOptions>();
@@ -446,9 +470,7 @@ void CDataBroadcastingWV2::InitWebView2()
                 wil::unique_cotaskmem_string message;
                 if (SUCCEEDED(args->get_WebMessageAsJson(message.put())))
                 {
-                    int size = WideCharToMultiByte(CP_UTF8, 0, message.get(), -1, NULL, 0, NULL, NULL);
-                    std::string messageUTF8(size, 0);
-                    WideCharToMultiByte(CP_UTF8, 0, message.get(), -1, &messageUTF8[0], size, NULL, NULL);
+                    auto messageUTF8 = wstrToUTF8String(message.get());
 
                     auto a = nlohmann::json::parse(messageUTF8);
                     auto type = a["type"].get<std::string>();
@@ -473,6 +495,16 @@ void CDataBroadcastingWV2::InitWebView2()
                         this->hVideoWnd = hVideoWnd;
                         SetWindowPos(hVideoWnd, HWND_BOTTOM, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS);
                     }
+                    else if (type == "status")
+                    {
+                        auto url = utf8StrToWString(a["url"].get<std::string>().c_str());
+                        auto receiving = a["receiving"].get<bool>();
+                        auto loading = a["loading"].get<bool>();
+                        this->status.url = url;
+                        this->status.receiving = receiving;
+                        this->status.loading = loading;
+                        this->m_pApp->StatusItemNotify(1, TVTest::STATUS_ITEM_NOTIFY_REDRAW);
+                    }
                 }
                 return S_OK;
             }).Get(), &token);
@@ -485,6 +517,7 @@ void CDataBroadcastingWV2::InitWebView2()
 
 bool CDataBroadcastingWV2::OnPluginEnable(bool fEnable)
 {
+    this->status = {};
     if (fEnable)
     {
         WNDCLASSEXW wc = {};
@@ -547,6 +580,7 @@ void CDataBroadcastingWV2::Tune()
 {
     if (this->webView && this->currentService.ServiceID)
     {
+        this->status = {};
         wil::unique_cotaskmem_string source;
         if (SUCCEEDED(this->webView->get_Source(source.put())))
         {
@@ -570,11 +604,21 @@ LRESULT CALLBACK CDataBroadcastingWV2::EventCallback(UINT Event, LPARAM lParam1,
 bool CDataBroadcastingWV2::OnStatusItemDraw(TVTest::StatusItemDrawInfo* pInfo)
 {
     std::wstring statusItem;
-    if ((pInfo->Flags & TVTest::STATUS_ITEM_DRAW_FLAG_PREVIEW) == 0) {
-        statusItem = L"123456";
+    if ((pInfo->Flags & TVTest::STATUS_ITEM_DRAW_FLAG_PREVIEW) == 0)
+    {
+        if (this->status.receiving)
+        {
+            statusItem += L"データ取得中...";
+        }
+        statusItem += this->status.url;
+        if (this->status.loading)
+        {
+            statusItem += L"を読み込み中...";
+        }
     }
-    else {
-        statusItem = L"123456";
+    else
+    {
+        statusItem = L"データ取得中...";
     }
     this->m_pApp->ThemeDrawText(pInfo->pszStyle, pInfo->hdc, statusItem.c_str(),
         pInfo->DrawRect,
