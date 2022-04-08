@@ -449,6 +449,25 @@ void CDataBroadcastingWV2::OnFilterGraphInitialized(TVTest::FilterGraphInfo* pIn
     }
     std::vector<HWND> childWindows;
     this->hContainerWnd = FindWindowExW(FindWindowExW(FindWindowExW(this->m_pApp->GetAppWindow(), nullptr, L"TVTest Splitter", nullptr), nullptr, L"TVTest View", nullptr), nullptr, L"TVTest Video Container", nullptr);
+    if (!this->hContainerWnd)
+    {
+        HWND fullscreen = nullptr;
+        // フルスクリーンのとき
+        EnumThreadWindows(GetCurrentThreadId(), [](HWND hWnd, LPARAM lParam) -> BOOL {
+            auto containerWnd = (HWND*)lParam;
+            WCHAR className[100];
+            if (GetClassNameW(hWnd, className, _countof(className)))
+            {
+                if (!wcscmp(className, L"TVTest Fullscreen"))
+                {
+                    *containerWnd = hWnd;
+                    return false;
+                }
+            }
+            return true;
+        }, (LPARAM)&fullscreen);
+        this->hContainerWnd = FindWindowExW(FindWindowExW(FindWindowExW(fullscreen, nullptr, L"TVTest Splitter", nullptr), nullptr, L"TVTest View", nullptr), nullptr, L"TVTest Video Container", nullptr);
+    }
     EnumChildWindows(this->hContainerWnd, [](HWND hWnd, LPARAM lParam) -> BOOL {
         auto childWindows = (std::vector<HWND>*)lParam;
         childWindows->push_back(hWnd);
@@ -546,11 +565,20 @@ void CDataBroadcastingWV2::InitWebView2()
             auto hWebViewWnd = FindWindowExW(this->hContainerWnd, nullptr, L"Chrome_WidgetWin_0", nullptr);
             this->hWebViewWnd = hWebViewWnd;
             // 動画ウィンドウといい感じに合成させるために必要 (Windows 8以降じゃないと動かないはず)
-            SetWindowLongW(hWebViewWnd, GWL_EXSTYLE, GetWindowLongW(hWebViewWnd, GWL_EXSTYLE) | WS_EX_LAYERED);
+            SetWindowLongW(hWebViewWnd, GWL_EXSTYLE, GetWindowLongW(hWebViewWnd, GWL_EXSTYLE) | WS_EX_LAYERED | WS_EX_TRANSPARENT);
             SetWindowPos(hWebViewWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-            auto controller2 = this->webViewController.query<ICoreWebView2Controller2>();
-            COREWEBVIEW2_COLOR c = { };
-            auto ff = controller2->put_DefaultBackgroundColor(c);
+            // ICoreWebView2_3, ICoreWebView2Controller2: 1.0.774.44
+
+            auto controller2 = this->webViewController.try_query<ICoreWebView2Controller2>();
+            if (!controller2)
+            {
+                MessageBoxW(this->m_pApp->GetAppWindow(), L"WebView2のバージョンが古すぎます。", L"TVTDataBroadcastingWV2", MB_ICONERROR | MB_OK);
+            }
+            else
+            {
+                COREWEBVIEW2_COLOR c = { };
+                auto ff = controller2->put_DefaultBackgroundColor(c);
+            }
             wil::com_ptr<ICoreWebView2Settings> settings;
             this->webView->get_Settings(settings.put());
             settings->put_IsScriptEnabled(TRUE);
@@ -704,14 +732,6 @@ bool CDataBroadcastingWV2::OnPluginEnable(bool fEnable)
         if (!this->GetIniItem(L"DisableRemoteControl", 0))
         {
             this->OnCommand(IDC_SHOW_REMOTE_CONTROL);
-        }
-
-        auto splitter = FindWindowExW(this->m_pApp->GetAppWindow(), nullptr, L"TVTest Splitter", nullptr);
-        auto view = FindWindowExW(splitter, nullptr, L"TVTest View", nullptr);
-        this->hContainerWnd = FindWindowExW(view, nullptr, L"TVTest Video Container", nullptr);
-        if (!this->hContainerWnd)
-        {
-            return false;
         }
         m_pApp->SetStreamCallback(0, StreamCallback, this);
         m_pApp->SetWindowMessageCallback(WindowMessageCallback, this);
