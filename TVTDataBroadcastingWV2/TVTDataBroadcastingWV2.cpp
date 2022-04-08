@@ -41,8 +41,9 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
 
     // 半端なので要改善
     static const size_t PACKET_SIZE = 188;
-    size_t PACKET_BUFFER_SIZE = PACKET_SIZE * 100;
-    int PAKCET_QUEUE_SIZE = 10;
+    // PCRパケットの間隔程度で処理することが望ましい
+    size_t PACKET_BUFFER_SIZE = PACKET_SIZE * 500;
+    int PAKCET_QUEUE_SIZE = 100;
     std::mutex packetBufferLock;
     BYTE* packetBuffer = new BYTE[PACKET_BUFFER_SIZE];
     size_t packetBufferPosition = 0;
@@ -75,6 +76,9 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     void ResizeVideoWindow();
     void Tune();
     void InitWebView2();
+    bool caption = false;
+    void SetCaptionState(bool enable);
+    void UpdateCaptionState();
     std::wstring GetIniItem(const wchar_t* key, const wchar_t* def);
 
     wil::com_ptr<ICoreWebView2Controller> webViewController;
@@ -120,7 +124,7 @@ BOOL CALLBACK CDataBroadcastingWV2::StreamCallback(BYTE* pData, void* pClientDat
     {
         pThis->packetBufferInQueue++;
         PostMessageW(pThis->hMessageWnd, WM_APP_PACKET, (WPARAM)&pThis->packetBufferInQueue, (LPARAM)pThis->packetBuffer);
-        pThis->packetBuffer = new BYTE[188 * 100];
+        pThis->packetBuffer = new BYTE[pThis->PACKET_BUFFER_SIZE];
         pThis->packetBufferPosition = 0;
     }
     return TRUE;
@@ -263,6 +267,8 @@ bool CDataBroadcastingWV2::Initialize()
     m_pApp->RegisterCommand(IDC_KEY_YELLOW, L"YellowButton", L"黄");
     m_pApp->RegisterCommand(IDC_KEY_RELOAD, L"Reload", L"再読み込み");
     m_pApp->RegisterCommand(IDC_KEY_DEVTOOL, L"OpenDevTools", L"開発者ツール");
+    m_pApp->RegisterCommand(IDC_ENABLE_CAPTION, L"EnableCaption", L"字幕表示");
+    m_pApp->RegisterCommand(IDC_DISABLE_CAPTION, L"DisableCaption", L"字幕非表示");
     m_pApp->RegisterPluginIconFromResource(g_hinstDLL, MAKEINTRESOURCEW(IDB_BITMAP1));
     TVTest::StatusItemInfo statusItemInfo = {};
     statusItemInfo.Size = sizeof(statusItemInfo);
@@ -620,6 +626,12 @@ void CDataBroadcastingWV2::InitWebView2()
                 }
                 return S_OK;
             }).Get(), &token);
+
+            this->webView->add_NavigationCompleted(Callback<ICoreWebView2NavigationCompletedEventHandler>(
+                [this](ICoreWebView2* sender, ICoreWebView2NavigationCompletedEventArgs* args) -> HRESULT {
+                this->UpdateCaptionState();
+                return S_OK;
+            }).Get(), &token);
             this->Tune();
             return S_OK;
         }).Get());
@@ -727,7 +739,7 @@ void CDataBroadcastingWV2::Tune()
         {
             std::wstring baseUrl(L"https://TVTDataBroadcastingWV2.invalid/public/TVTestBML.html?serviceId=");
             baseUrl += std::to_wstring(this->currentService.ServiceID);
-            if (wcscmp(source.get(), baseUrl.c_str()))
+            if (_wcsicmp(source.get(), baseUrl.c_str()))
             {
                 this->RestoreVideoWindow();
                 // FIXME!! packetBufferは廃棄すべき
@@ -783,6 +795,28 @@ bool CDataBroadcastingWV2::OnFullscreenChange(bool fFullscreen)
         PostMessageW(this->hMessageWnd, WM_APP_RESIZE, 0, 0);
     }
     return true;
+}
+
+void CDataBroadcastingWV2::UpdateCaptionState()
+{
+    if (this->caption)
+    {
+        this->webView->PostWebMessageAsJson(LR"({"type":"caption","enable":true})");
+    }
+    else
+    {
+        this->webView->PostWebMessageAsJson(LR"({"type":"caption","enable":false})");
+    }
+}
+
+void CDataBroadcastingWV2::SetCaptionState(bool enable)
+{
+    if (this->hRemoteWnd)
+    {
+        this->caption = enable;
+        SendMessageW(GetDlgItem(this->hRemoteWnd, IDC_TOGGLE_CAPTION), BM_SETCHECK, this->caption ? BST_CHECKED : BST_UNCHECKED, 0);
+    }
+    this->UpdateCaptionState();
 }
 
 bool CDataBroadcastingWV2::OnCommand(int ID)
@@ -871,6 +905,12 @@ bool CDataBroadcastingWV2::OnCommand(int ID)
     case IDC_KEY_RELOAD:
         this->webView->Reload();
         break;
+    case IDC_ENABLE_CAPTION:
+        this->SetCaptionState(true);
+        break;
+    case IDC_DISABLE_CAPTION:
+        this->SetCaptionState(false);
+        break;
     }
     return true;
 }
@@ -887,7 +927,21 @@ INT_PTR CALLBACK CDataBroadcastingWV2::RemoteControlDlgProc(HWND hDlg, UINT uMsg
     case WM_COMMAND:
     {
         CDataBroadcastingWV2* pThis = static_cast<CDataBroadcastingWV2*>(pClientData);
-        pThis->OnCommand(LOWORD(wParam));
+        if (LOWORD(wParam) == IDC_TOGGLE_CAPTION)
+        {
+            if (SendMessageW((HWND)lParam, BM_GETCHECK, 0, 0) == BST_CHECKED)
+            {
+                pThis->OnCommand(IDC_ENABLE_CAPTION);
+            }
+            else
+            {
+                pThis->OnCommand(IDC_DISABLE_CAPTION);
+            }
+        }
+        else
+        {
+            pThis->OnCommand(LOWORD(wParam));
+        }
         return 1;
     }
     case WM_CLOSE:

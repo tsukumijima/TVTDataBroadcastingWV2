@@ -1,6 +1,5 @@
 // Microsoft Visual C++ generated resource script.
 //
-#include <Windows.h>
 #include "resource.h"
 /////////////////////////////////////////////////////////////////////////////
 // 日本語 (日本) resources
@@ -48,6 +47,7 @@ BEGIN
     PUSHBUTTON      "再読み込み",IDC_KEY_RELOAD,6,312,72,18
     CONTROL         "プラグイン有効時に自動起動",IDC_CHECK_AUTOSTART,"Button",BS_AUTOCHECKBOX | BS_MULTILINE | WS_TABSTOP,12,264,60,18
     GROUPBOX        "設定",IDC_STATIC,6,252,72,40
+    CONTROL         "字幕",IDC_TOGGLE_CAPTION,"Button",BS_AUTOCHECKBOX | BS_PUSHLIKE | WS_TABSTOP,30,222,24,24
 END
 
 
