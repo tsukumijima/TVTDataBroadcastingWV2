@@ -1,10 +1,10 @@
 //{{NO_DEPENDENCIES}}
 #include <Windows.h>
 #define IDD_REMOTE_CONTROL              101
-#define IDB_BITMAP1                     103
+#define IDD_SETTING                     102
+#define IDB_PLUGIN                      103
 #define IDC_KEY_D                       1000
 #define IDC_KEY_LEFT                    1001
-#define IDC_KEY_D3                      1002
 #define IDC_KEY_RIGHT                   1002
 #define IDC_KEY_UP                      1003
 #define IDC_KEY_DOWN                    1004
@@ -15,9 +15,8 @@
 #define IDC_KEY_1                       1009
 #define IDC_KEY_2                       1010
 #define IDC_KEY_3                       1011
-#define IDC_CHECK_AUTOSTART             1012
+#define IDC_CHECK_DISABLE_REMOTECON     1014
 #define IDC_KEY_YELLOW                  1018
-#define IDC_KEY_D16                     1019
 #define IDC_KEY_BACK                    1019
 #define IDC_KEY_4                       1020
 #define IDC_KEY_5                       1021
@@ -33,7 +32,7 @@
 #define IDC_KEY_RELOAD                  1031
 #define IDC_TOGGLE_CAPTION              1032
 #define IDC_ENABLE_CAPTION              1033
-#define IDC_DISABLE_CAPTION              1034
+#define IDC_DISABLE_CAPTION             1034
 #define IDC_STATIC                      -1
 
 // Next default values for new objects

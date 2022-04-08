@@ -13,7 +13,7 @@ LANGUAGE LANG_JAPANESE, SUBLANG_DEFAULT
 // Dialog
 //
 
-IDD_REMOTE_CONTROL DIALOGEX 0, 0, 87, 336
+IDD_REMOTE_CONTROL DIALOGEX 0, 0, 87, 294
 STYLE DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU
 EXSTYLE WS_EX_TOOLWINDOW
 CAPTION "リモコン"
@@ -43,11 +43,19 @@ BEGIN
     PUSHBUTTON      "11",IDC_KEY_11,30,198,24,24
     PUSHBUTTON      "12",IDC_KEY_12,54,198,24,24
     PUSHBUTTON      "0",IDC_KEY_0,6,222,24,24
-    PUSHBUTTON      "開発者ツール",IDC_KEY_DEVTOOL,6,294,72,18
-    PUSHBUTTON      "再読み込み",IDC_KEY_RELOAD,6,312,72,18
-    CONTROL         "プラグイン有効時に自動起動",IDC_CHECK_AUTOSTART,"Button",BS_AUTOCHECKBOX | BS_MULTILINE | WS_TABSTOP,12,264,60,18
-    GROUPBOX        "設定",IDC_STATIC,6,252,72,40
+    PUSHBUTTON      "開発者ツール",IDC_KEY_DEVTOOL,6,252,72,18
+    PUSHBUTTON      "再読み込み",IDC_KEY_RELOAD,6,270,72,18
     CONTROL         "字幕",IDC_TOGGLE_CAPTION,"Button",BS_AUTOCHECKBOX | BS_PUSHLIKE | WS_TABSTOP,30,222,24,24
+END
+
+IDD_SETTING DIALOGEX 0, 0, 150, 42
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "TVTDataBroadcastingWV2の設定"
+FONT 9, "Meiryo UI", 400, 0, 0x80
+BEGIN
+    DEFPUSHBUTTON   "OK",IDOK,42,24,50,14
+    PUSHBUTTON      "キャンセル",IDCANCEL,96,24,50,14
+    CONTROL         "プラグイン有効時にリモコンを表示しない",IDC_CHECK_DISABLE_REMOTECON,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,6,6,139,10
 END
 
 
@@ -89,7 +97,15 @@ BEGIN
         LEFTMARGIN, 7
         RIGHTMARGIN, 80
         TOPMARGIN, 6
-        BOTTOMMARGIN, 329
+        BOTTOMMARGIN, 287
+    END
+
+    IDD_SETTING, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 143
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 35
     END
 END
 #endif    // APSTUDIO_INVOKED
@@ -105,13 +121,18 @@ BEGIN
     0
 END
 
+IDD_SETTING AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
 
 /////////////////////////////////////////////////////////////////////////////
 //
 // Bitmap
 //
 
-IDB_BITMAP1             BITMAP                  "Icon16.bmp"
+IDB_PLUGIN              BITMAP                  "Icon16.bmp"
 
 #endif    // 日本語 (日本) resources
 /////////////////////////////////////////////////////////////////////////////

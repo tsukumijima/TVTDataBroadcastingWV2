@@ -71,6 +71,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     virtual void OnFilterGraphFinalize(TVTest::FilterGraphInfo* pInfo);
     virtual bool OnStatusItemDraw(TVTest::StatusItemDrawInfo* pInfo);
     virtual bool OnFullscreenChange(bool fFullscreen);
+    virtual bool OnPluginSettings(HWND hwndOwner);
 
     void RestoreVideoWindow();
     void ResizeVideoWindow();
@@ -80,12 +81,15 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     void SetCaptionState(bool enable);
     void UpdateCaptionState();
     std::wstring GetIniItem(const wchar_t* key, const wchar_t* def);
+    INT GetIniItem(const wchar_t* key, INT def);
+    bool SetIniItem(const wchar_t* key, const wchar_t* data);
 
     wil::com_ptr<ICoreWebView2Controller> webViewController;
     wil::com_ptr<ICoreWebView2> webView;
 
     static LRESULT CALLBACK EventCallback(UINT Event, LPARAM lParam1, LPARAM lParam2, void* pClientData);
     static INT_PTR CALLBACK RemoteControlDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam, void* pClientData);
+    static INT_PTR CALLBACK SettingsDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam, void* pClientData);
     static BOOL CALLBACK StreamCallback(BYTE* pData, void* pClientData);
     static LRESULT CALLBACK MessageWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
     static BOOL CALLBACK WindowMessageCallback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT* pResult, void* pUserData);
@@ -99,7 +103,7 @@ public:
 bool CDataBroadcastingWV2::GetPluginInfo(TVTest::PluginInfo* pInfo)
 {
     pInfo->Type = TVTest::PLUGIN_TYPE_NORMAL;
-    pInfo->Flags = TVTest::PLUGIN_FLAG_DISABLEONSTART;
+    pInfo->Flags = TVTest::PLUGIN_FLAG_DISABLEONSTART | TVTest::PLUGIN_FLAG_HASSETTINGS;
     pInfo->pszPluginName = L"TVTDataBroadcastingWV2";
     pInfo->pszCopyright = L"MIT License";
     pInfo->pszDescription = L"データ放送を表示";
@@ -211,6 +215,15 @@ std::wstring CDataBroadcastingWV2::GetIniItem(const wchar_t* key, const wchar_t*
         item.reserve(size);
     }
 }
+INT CDataBroadcastingWV2::GetIniItem(const wchar_t* key, INT def)
+{
+    return GetPrivateProfileIntW(L"TVTDataBroadcastingWV2", key, def, this->iniFile.c_str());
+}
+
+bool CDataBroadcastingWV2::SetIniItem(const wchar_t* key, const wchar_t* data)
+{
+    return WritePrivateProfileStringW(L"TVTDataBroadcastingWV2", key, data, this->iniFile.c_str());
+}
 
 bool CDataBroadcastingWV2::Initialize()
 {
@@ -269,7 +282,7 @@ bool CDataBroadcastingWV2::Initialize()
     m_pApp->RegisterCommand(IDC_KEY_DEVTOOL, L"OpenDevTools", L"開発者ツール");
     m_pApp->RegisterCommand(IDC_ENABLE_CAPTION, L"EnableCaption", L"字幕表示");
     m_pApp->RegisterCommand(IDC_DISABLE_CAPTION, L"DisableCaption", L"字幕非表示");
-    m_pApp->RegisterPluginIconFromResource(g_hinstDLL, MAKEINTRESOURCEW(IDB_BITMAP1));
+    m_pApp->RegisterPluginIconFromResource(g_hinstDLL, MAKEINTRESOURCEW(IDB_PLUGIN));
     TVTest::StatusItemInfo statusItemInfo = {};
     statusItemInfo.Size = sizeof(statusItemInfo);
     statusItemInfo.ID = 1;
@@ -505,12 +518,18 @@ void CDataBroadcastingWV2::InitWebView2()
     {
         webView2Directory = this->webView2Directory.c_str();
     }
+    auto resourceDirectory = this->GetIniItem(L"ResourceDirectory", this->resourceDirectory.c_str());
+    if (!std::filesystem::is_directory(resourceDirectory))
+    {
+        MessageBoxW(this->m_pApp->GetAppWindow(), (L"リソースディレクトリが見つかりません。\n" + resourceDirectory).c_str(), L"TVTDataBroadcastingWV2", MB_ICONERROR | MB_OK);
+        return;
+    }
     auto options = Microsoft::WRL::Make<CoreWebView2EnvironmentOptions>();
     CreateCoreWebView2EnvironmentWithOptions(webView2Directory, this->webView2DataDirectory.c_str(), options.Get(),
         Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
-            [this](HRESULT result, ICoreWebView2Environment* env) -> HRESULT {
+            [this, resourceDirectory](HRESULT result, ICoreWebView2Environment* env) -> HRESULT {
         env->CreateCoreWebView2Controller(this->hContainerWnd, Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
-            [env, this](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
+            [env, this, resourceDirectory](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
             if (FAILED(result))
             {
                 wchar_t buf[std::numeric_limits<HRESULT>::digits10 + 2]{};
@@ -543,7 +562,6 @@ void CDataBroadcastingWV2::InitWebView2()
 
             EventRegistrationToken token;
             auto webView3 = this->webView.query<ICoreWebView2_3>();
-            auto resourceDirectory = this->GetIniItem(L"ResourceDirectory", this->resourceDirectory.c_str());
             webView3->SetVirtualHostNameToFolderMapping(L"TVTDataBroadcastingWV2.invalid", resourceDirectory.c_str(), COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW);
 
             // 仮想ホスト以外へのリクエストは全てブロックする
@@ -681,20 +699,26 @@ bool CDataBroadcastingWV2::OnPluginEnable(bool fEnable)
         }
         this->hMessageWnd = CreateWindowExW(0, L"TVTDataBroadcastingWV2 Message Window", L"TVTDataBroadcastingWV2 Message Window", 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, nullptr, nullptr);
         SetWindowLongPtrW(this->hMessageWnd, GWLP_USERDATA, (LONG_PTR)this);
-        TVTest::ShowDialogInfo Info;
 
-        Info.Flags = TVTest::SHOW_DIALOG_FLAG_MODELESS;
-        Info.hinst = g_hinstDLL;
-        Info.pszTemplate = MAKEINTRESOURCE(IDD_REMOTE_CONTROL);
-        Info.pMessageFunc = RemoteControlDlgProc;
-        Info.pClientData = this;
-        Info.hwndOwner = this->m_pApp->GetAppWindow();
+        if (!this->GetIniItem(L"DisableRemoteControl", 0))
+        {
+            TVTest::ShowDialogInfo Info;
 
-        if ((HWND)this->m_pApp->ShowDialog(&Info) == nullptr)
-            return false;
-        ShowWindow(this->hRemoteWnd, fEnable ? SW_SHOW : SW_HIDE);
+            Info.Flags = TVTest::SHOW_DIALOG_FLAG_MODELESS;
+            Info.hinst = g_hinstDLL;
+            Info.pszTemplate = MAKEINTRESOURCE(IDD_REMOTE_CONTROL);
+            Info.pMessageFunc = RemoteControlDlgProc;
+            Info.pClientData = this;
+            Info.hwndOwner = this->m_pApp->GetAppWindow();
 
-        this->hContainerWnd = FindWindowExW(FindWindowExW(FindWindowExW(this->m_pApp->GetAppWindow(), nullptr, L"TVTest Splitter", nullptr), nullptr, L"TVTest View", nullptr), nullptr, L"TVTest Video Container", nullptr);
+            if ((HWND)this->m_pApp->ShowDialog(&Info) == nullptr)
+                return false;
+            ShowWindow(this->hRemoteWnd, fEnable ? SW_SHOW : SW_HIDE);
+        }
+
+        auto splitter = FindWindowExW(this->m_pApp->GetAppWindow(), nullptr, L"TVTest Splitter", nullptr);
+        auto view = FindWindowExW(splitter, nullptr, L"TVTest View", nullptr);
+        this->hContainerWnd = FindWindowExW(view, nullptr, L"TVTest Video Container", nullptr);
         if (!this->hContainerWnd)
         {
             return false;
@@ -814,7 +838,7 @@ void CDataBroadcastingWV2::SetCaptionState(bool enable)
     if (this->hRemoteWnd)
     {
         this->caption = enable;
-        SendMessageW(GetDlgItem(this->hRemoteWnd, IDC_TOGGLE_CAPTION), BM_SETCHECK, this->caption ? BST_CHECKED : BST_UNCHECKED, 0);
+        SendDlgItemMessageW(this->hRemoteWnd, IDC_TOGGLE_CAPTION, BM_SETCHECK, this->caption ? BST_CHECKED : BST_UNCHECKED, 0);
     }
     this->UpdateCaptionState();
 }
@@ -926,7 +950,6 @@ INT_PTR CALLBACK CDataBroadcastingWV2::RemoteControlDlgProc(HWND hDlg, UINT uMsg
     }
     case WM_COMMAND:
     {
-        CDataBroadcastingWV2* pThis = static_cast<CDataBroadcastingWV2*>(pClientData);
         if (LOWORD(wParam) == IDC_TOGGLE_CAPTION)
         {
             if (SendMessageW((HWND)lParam, BM_GETCHECK, 0, 0) == BST_CHECKED)
@@ -955,6 +978,64 @@ INT_PTR CALLBACK CDataBroadcastingWV2::RemoteControlDlgProc(HWND hDlg, UINT uMsg
     }
     }
     return 0;
+}
+
+INT_PTR CALLBACK CDataBroadcastingWV2::SettingsDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam, void* pClientData)
+{
+    CDataBroadcastingWV2* pThis = static_cast<CDataBroadcastingWV2*>(pClientData);
+    switch (uMsg) {
+    case WM_INITDIALOG:
+    {
+        if (pThis->GetIniItem(L"DisableRemoteControl", 0))
+        {
+            SendDlgItemMessageW(hDlg, IDC_CHECK_DISABLE_REMOTECON, BM_SETCHECK, BST_CHECKED, 0);
+        }
+        return 1;
+    }
+    case WM_COMMAND:
+    {
+        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+        {
+            if (LOWORD(wParam) == IDOK)
+            {
+                auto disableRemoteControl = SendDlgItemMessageW(hDlg, IDC_CHECK_DISABLE_REMOTECON, BM_GETCHECK, 0, 0);
+                if (!pThis->SetIniItem(L"DisableRemoteControl", disableRemoteControl ? L"1" : L"0"))
+                {
+                    MessageBoxW(hDlg, L"設定を保存できませんでした", L"TVTDataBroadcastingWV2の設定", MB_ICONERROR | MB_OK);
+                    EndDialog(hDlg, IDCANCEL);
+                    return 1;
+                }
+            }
+            EndDialog(hDlg, LOWORD(wParam));
+        }
+        return 1;
+    }
+    case WM_CLOSE:
+    {
+        EndDialog(hDlg, IDCANCEL);
+        return 1;
+    }
+    case WM_DESTROY:
+    {
+        return 1;
+    }
+    }
+    return 0;
+}
+
+bool CDataBroadcastingWV2::OnPluginSettings(HWND hwndOwner)
+{
+    TVTest::ShowDialogInfo Info;
+
+    Info.Flags = 0;
+    Info.hinst = g_hinstDLL;
+    Info.pszTemplate = MAKEINTRESOURCE(IDD_SETTING);
+    Info.pMessageFunc = SettingsDlgProc;
+    Info.pClientData = this;
+    Info.hwndOwner = hwndOwner;
+
+    auto result = this->m_pApp->ShowDialog(&Info);
+    return result == IDOK;
 }
 
 TVTest::CTVTestPlugin* CreatePluginClass()

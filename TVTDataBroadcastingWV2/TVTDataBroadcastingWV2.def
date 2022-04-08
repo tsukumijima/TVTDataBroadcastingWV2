@@ -1,0 +1,7 @@
+LIBRARY TVTDataBroadcastingWV2.tvtp
+
+EXPORTS
+	TVTGetVersion
+	TVTGetPluginInfo
+	TVTInitialize
+	TVTFinalize
