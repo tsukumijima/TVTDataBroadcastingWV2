@@ -258,6 +258,7 @@ bool CDataBroadcastingWV2::Initialize()
     }
     m_pApp->SetEventCallback(EventCallback, this);
     m_pApp->RegisterCommand(IDC_KEY_D, L"DataButton", L"dボタン");
+    m_pApp->RegisterCommand(IDC_KEY_D_OR_ENABLE_PLUGIN, L"DataButtonOrEnablePlugin", L"プラグイン有効/dボタン");
     m_pApp->RegisterCommand(IDC_KEY_UP, L"Up", L"↑");
     m_pApp->RegisterCommand(IDC_KEY_DOWN, L"Down", L"↓");
     m_pApp->RegisterCommand(IDC_KEY_LEFT, L"Left", L"←");
@@ -875,10 +876,15 @@ bool CDataBroadcastingWV2::OnCommand(int ID)
 {
     if (!this->webView)
     {
+        if (ID == IDC_KEY_D_OR_ENABLE_PLUGIN)
+        {
+            this->m_pApp->EnablePlugin(true);
+        }
         return false;
     }
     switch (ID)
     {
+    case IDC_KEY_D_OR_ENABLE_PLUGIN:
     case IDC_KEY_D:
         this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":20})");
         break;
