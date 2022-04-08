@@ -282,6 +282,7 @@ bool CDataBroadcastingWV2::Initialize()
     m_pApp->RegisterCommand(IDC_KEY_DEVTOOL, L"OpenDevTools", L"開発者ツール");
     m_pApp->RegisterCommand(IDC_ENABLE_CAPTION, L"EnableCaption", L"字幕表示");
     m_pApp->RegisterCommand(IDC_DISABLE_CAPTION, L"DisableCaption", L"字幕非表示");
+    m_pApp->RegisterCommand(IDC_SHOW_REMOTE_CONTROL, L"ShowRemoteControl", L"リモコン表示");
     m_pApp->RegisterPluginIconFromResource(g_hinstDLL, MAKEINTRESOURCEW(IDB_PLUGIN));
     TVTest::StatusItemInfo statusItemInfo = {};
     statusItemInfo.Size = sizeof(statusItemInfo);
@@ -702,18 +703,7 @@ bool CDataBroadcastingWV2::OnPluginEnable(bool fEnable)
 
         if (!this->GetIniItem(L"DisableRemoteControl", 0))
         {
-            TVTest::ShowDialogInfo Info;
-
-            Info.Flags = TVTest::SHOW_DIALOG_FLAG_MODELESS;
-            Info.hinst = g_hinstDLL;
-            Info.pszTemplate = MAKEINTRESOURCE(IDD_REMOTE_CONTROL);
-            Info.pMessageFunc = RemoteControlDlgProc;
-            Info.pClientData = this;
-            Info.hwndOwner = this->m_pApp->GetAppWindow();
-
-            if ((HWND)this->m_pApp->ShowDialog(&Info) == nullptr)
-                return false;
-            ShowWindow(this->hRemoteWnd, fEnable ? SW_SHOW : SW_HIDE);
+            this->OnCommand(IDC_SHOW_REMOTE_CONTROL);
         }
 
         auto splitter = FindWindowExW(this->m_pApp->GetAppWindow(), nullptr, L"TVTest Splitter", nullptr);
@@ -935,6 +925,25 @@ bool CDataBroadcastingWV2::OnCommand(int ID)
     case IDC_DISABLE_CAPTION:
         this->SetCaptionState(false);
         break;
+    case IDC_SHOW_REMOTE_CONTROL:
+    {
+        if (!this->hRemoteWnd)
+        {
+            TVTest::ShowDialogInfo Info;
+
+            Info.Flags = TVTest::SHOW_DIALOG_FLAG_MODELESS;
+            Info.hinst = g_hinstDLL;
+            Info.pszTemplate = MAKEINTRESOURCE(IDD_REMOTE_CONTROL);
+            Info.pMessageFunc = RemoteControlDlgProc;
+            Info.pClientData = this;
+            Info.hwndOwner = this->m_pApp->GetAppWindow();
+
+            if ((HWND)this->m_pApp->ShowDialog(&Info) == nullptr)
+                return false;
+            ShowWindow(this->hRemoteWnd, SW_SHOW);
+        }
+        break;
+    }
     }
     return true;
 }
@@ -974,6 +983,7 @@ INT_PTR CALLBACK CDataBroadcastingWV2::RemoteControlDlgProc(HWND hDlg, UINT uMsg
     }
     case WM_DESTROY:
     {
+        pThis->hRemoteWnd = nullptr;
         return 1;
     }
     }
