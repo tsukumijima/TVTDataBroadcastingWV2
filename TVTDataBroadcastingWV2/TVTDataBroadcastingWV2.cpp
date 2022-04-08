@@ -18,6 +18,9 @@ using namespace Microsoft::WRL;
 #define WM_APP_PACKET (WM_APP + 0)
 #define WM_APP_RESIZE (WM_APP + 1)
 
+#define IDT_SHOW_EVR_WINDOW 1
+#define IDT_RESIZE 2
+
 struct Status
 {
     std::wstring url;
@@ -322,15 +325,22 @@ LRESULT CALLBACK CDataBroadcastingWV2::MessageWndProc(HWND hWnd, UINT uMsg, WPAR
     {
     case WM_TIMER:
     {
-        if (wParam == 1)
+        switch (wParam)
+        {
+        case IDT_SHOW_EVR_WINDOW:
         {
             SetWindowPos(pThis->hVideoWnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
             KillTimer(hWnd, wParam);
+            break;
         }
-        else if (wParam == 2)
+        case IDT_RESIZE:
         {
-            pThis->ResizeVideoWindow();
-            KillTimer(hWnd, wParam);
+            if (!pThis->invisible)
+            {
+                pThis->ResizeVideoWindow();
+            }
+            break;
+        }
         }
         break;
     }
@@ -338,7 +348,10 @@ LRESULT CALLBACK CDataBroadcastingWV2::MessageWndProc(HWND hWnd, UINT uMsg, WPAR
     {
         if (pThis->webViewController)
         {
-            SetTimer(pThis->hMessageWnd, 1, 50, nullptr);
+            if (pThis->hVideoWnd)
+            {
+                SetTimer(pThis->hMessageWnd, IDT_SHOW_EVR_WINDOW, 50, nullptr);
+            }
             RECT rect;
             if (GetClientRect(pThis->hContainerWnd, &rect))
             {
@@ -505,7 +518,6 @@ void CDataBroadcastingWV2::OnFilterGraphInitialized(TVTest::FilterGraphInfo* pIn
         this->hVideoWnd = nullptr;
     }
     this->ResizeVideoWindow();
-    SetTimer(this->hMessageWnd, 2, 5000, nullptr);
 }
 
 void CDataBroadcastingWV2::OnFilterGraphFinalize(TVTest::FilterGraphInfo* pInfo)
@@ -568,7 +580,6 @@ void CDataBroadcastingWV2::InitWebView2()
             SetWindowLongW(hWebViewWnd, GWL_EXSTYLE, GetWindowLongW(hWebViewWnd, GWL_EXSTYLE) | WS_EX_LAYERED | WS_EX_TRANSPARENT);
             SetWindowPos(hWebViewWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
             // ICoreWebView2_3, ICoreWebView2Controller2: 1.0.774.44
-
             auto controller2 = this->webViewController.try_query<ICoreWebView2Controller2>();
             if (!controller2)
             {
@@ -700,7 +711,6 @@ void CDataBroadcastingWV2::ResizeVideoWindow()
             {
                 auto vmr9WindowlessControl = this->vmr9Renderer.query<IVMRWindowlessControl9>();
                 vmr9WindowlessControl->SetVideoPosition(nullptr, &this->videoRect);
-                // InvalidateRect(this->hContainerWnd, nullptr, true);
             }
             else if (this->basicVideo)
             {
@@ -708,7 +718,14 @@ void CDataBroadcastingWV2::ResizeVideoWindow()
             }
             else
             {
-                SetWindowPos(hVideoWnd, HWND_BOTTOM, this->videoRect.left, this->videoRect.top, this->videoRect.right - this->videoRect.left, this->videoRect.bottom - this->videoRect.top, SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS);
+                RECT rect;
+                if (GetClientRect(this->hVideoWnd, &rect))
+                {
+                    if (memcmp(&rect, &this->videoRect, sizeof(rect)))
+                    {
+                        SetWindowPos(this->hVideoWnd, HWND_BOTTOM, this->videoRect.left, this->videoRect.top, this->videoRect.right - this->videoRect.left, this->videoRect.bottom - this->videoRect.top, SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS);
+                    }
+                }
             }
         }
     }
@@ -736,6 +753,7 @@ bool CDataBroadcastingWV2::OnPluginEnable(bool fEnable)
         m_pApp->SetStreamCallback(0, StreamCallback, this);
         m_pApp->SetWindowMessageCallback(WindowMessageCallback, this);
         InitWebView2();
+        SetTimer(this->hMessageWnd, IDT_RESIZE, 1000, nullptr);
     }
     else
     {
