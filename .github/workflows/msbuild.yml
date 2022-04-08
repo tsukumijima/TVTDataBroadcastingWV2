@@ -24,7 +24,7 @@ jobs:
 
     strategy:
       matrix:
-       platform: [ Win32, x64 ]
+       platform: [ x86, x64 ]
 
     steps:
     - uses: actions/checkout@v3
