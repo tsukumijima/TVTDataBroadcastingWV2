@@ -141,6 +141,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     std::wstring GetIniItem(const wchar_t* key, const wchar_t* def);
     INT GetIniItem(const wchar_t* key, INT def);
     bool SetIniItem(const wchar_t* key, const wchar_t* data);
+    void Disable(bool finalize);
 
     wil::com_ptr<ICoreWebView2Controller> webViewController;
     wil::com_ptr<ICoreWebView2> webView;
@@ -351,13 +352,7 @@ bool CDataBroadcastingWV2::Initialize()
 
 bool CDataBroadcastingWV2::Finalize()
 {
-    this->OnPluginEnable(false);
-    if (this->hMessageWnd)
-    {
-        auto hWnd = this->hMessageWnd;
-        DestroyWindow(hWnd);
-        this->hMessageWnd = nullptr;
-    }
+    this->Disable(true);
     return true;
 }
 
@@ -789,6 +784,39 @@ void CDataBroadcastingWV2::ResizeVideoWindow()
     }
 }
 
+void CDataBroadcastingWV2::Disable(bool finalize)
+{
+    this->RestoreVideoWindow();
+    m_pApp->SetStreamCallback(TVTest::STREAM_CALLBACK_REMOVE, StreamCallback, this);
+    if (!finalize)
+    {
+        m_pApp->SetWindowMessageCallback(nullptr, this);
+    }
+    if (this->hRemoteWnd)
+    {
+        auto hWnd = this->hRemoteWnd;
+        this->hRemoteWnd = nullptr;
+        DestroyWindow(hWnd);
+    }
+    if (this->webViewController)
+    {
+        this->webView->Stop();
+        this->webView.reset();
+        this->webViewController->Close();
+        this->webViewController.reset();
+    }
+    this->webViewLoaded = false;
+
+    this->packetQueue.clear();
+
+    if (this->hMessageWnd)
+    {
+        auto hWnd = this->hMessageWnd;
+        DestroyWindow(hWnd);
+        this->hMessageWnd = nullptr;
+    }
+}
+
 bool CDataBroadcastingWV2::OnPluginEnable(bool fEnable)
 {
     this->status = {};
@@ -815,25 +843,7 @@ bool CDataBroadcastingWV2::OnPluginEnable(bool fEnable)
     }
     else
     {
-        this->RestoreVideoWindow();
-        m_pApp->SetStreamCallback(TVTest::STREAM_CALLBACK_REMOVE, StreamCallback, this);
-        m_pApp->SetWindowMessageCallback(nullptr, this);
-        if (this->hRemoteWnd)
-        {
-            auto hWnd = this->hRemoteWnd;
-            this->hRemoteWnd = nullptr;
-            DestroyWindow(hWnd);
-        }
-        if (this->webViewController)
-        {
-            this->webView->Stop();
-            this->webView.reset();
-            this->webViewController->Close();
-            this->webViewController.reset();
-        }
-        this->webViewLoaded = false;
-
-        this->packetQueue.clear();
+        this->Disable(false);
     }
     return true;
 }
