@@ -1057,6 +1057,10 @@ INT_PTR CALLBACK CDataBroadcastingWV2::RemoteControlDlgProc(HWND hDlg, UINT uMsg
     case WM_INITDIALOG:
     {
         pThis->hRemoteWnd = hDlg;
+        if (pThis->caption)
+        {
+            SendDlgItemMessageW(hDlg, IDC_TOGGLE_CAPTION, BM_SETCHECK, BST_CHECKED, 0);
+        }
         return 1;
     }
     case WM_COMMAND:
