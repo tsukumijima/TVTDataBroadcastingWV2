@@ -3,6 +3,8 @@
 #define TVTEST_PLUGIN_CLASS_IMPLEMENT
 #include "thirdparty/TVTestPlugin.h"
 #include "resource.h"
+#include <queue>
+#include <optional>
 
 using namespace Microsoft::WRL;
 
@@ -23,6 +25,71 @@ struct Status
     bool loading = false;
 };
 
+struct PacketQueue
+{
+private:
+    std::mutex queueMutex;
+    std::vector<BYTE> currentBlock;
+    std::queue<std::vector<BYTE>> queue;
+    std::atomic<bool> invalidate;
+public:
+    const size_t packetSize = 188;
+    // PCRパケットの間隔程度で処理することが望ましい
+    const size_t packetBlockSize = packetSize * 500;
+    const size_t maxQueueLength = 100;
+
+    PacketQueue()
+    {
+        currentBlock.reserve(packetBlockSize);
+    }
+
+    // TSスレッドでのみ呼び出せる
+    bool enqueuePacket(BYTE* packet)
+    {
+        if (this->invalidate.exchange(false))
+        {
+            this->currentBlock.clear();
+        }
+        this->currentBlock.insert(this->currentBlock.end(), packet, packet + this->packetSize);
+        if (this->currentBlock.size() >= packetBlockSize)
+        {
+            std::lock_guard<std::mutex> lock(this->queueMutex);
+            if (this->queue.size() < this->maxQueueLength)
+            {
+                this->queue.push(std::move(this->currentBlock));
+                this->currentBlock.reserve(this->packetBlockSize);
+            }
+            else
+            {
+                this->currentBlock.clear();
+            }
+            return true;
+        }
+        return false;
+    }
+
+    // どのスレッドからも呼び出せる
+    void clear()
+    {
+        std::lock_guard<std::mutex> lock(this->queueMutex);
+        std::queue<std::vector<BYTE>>().swap(this->queue);
+        this->invalidate = true;
+    }
+
+    // どのスレッドからも呼び出せる
+    std::optional<std::vector<BYTE>> pop()
+    {
+        std::lock_guard<std::mutex> lock(this->queueMutex);
+        if (this->queue.empty())
+        {
+            return std::nullopt;
+        }
+        auto r = std::move(this->queue.front());
+        this->queue.pop();
+        return r;
+    }
+};
+
 // Plugins/TVTDataBroadcastingWV2.tvtp
 class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventHandler
 {
@@ -37,15 +104,8 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     // Plugins/TVTDataBroadcastingWV2/WebView2/
     std::wstring webView2Directory;
 
-    // 半端なので要改善
-    static const size_t PACKET_SIZE = 188;
-    // PCRパケットの間隔程度で処理することが望ましい
-    size_t PACKET_BUFFER_SIZE = PACKET_SIZE * 500;
-    int PAKCET_QUEUE_SIZE = 100;
-    std::mutex packetBufferLock;
-    BYTE* packetBuffer = new BYTE[PACKET_BUFFER_SIZE];
-    size_t packetBufferPosition = 0;
-    std::atomic<int> packetBufferInQueue = 0;
+    std::atomic<bool> webViewLoaded;
+    PacketQueue packetQueue;
 
     HWND hRemoteWnd = nullptr;
     HWND hVideoWnd = nullptr;
@@ -111,23 +171,13 @@ bool CDataBroadcastingWV2::GetPluginInfo(TVTest::PluginInfo* pInfo)
 BOOL CALLBACK CDataBroadcastingWV2::StreamCallback(BYTE* pData, void* pClientData)
 {
     auto pThis = (CDataBroadcastingWV2*)pClientData;
-    if (!pThis->webView)
+    if (!pThis->webViewLoaded)
     {
         return TRUE;
     }
-    if (pThis->packetBufferInQueue >= pThis->PAKCET_QUEUE_SIZE)
+    if (pThis->packetQueue.enqueuePacket(pData))
     {
-        return TRUE;
-    }
-    std::lock_guard<std::mutex> lock(pThis->packetBufferLock);
-    memcpy(pThis->packetBuffer + pThis->packetBufferPosition, pData, PACKET_SIZE);
-    pThis->packetBufferPosition += PACKET_SIZE;
-    if (pThis->packetBufferPosition == pThis->PACKET_BUFFER_SIZE)
-    {
-        pThis->packetBufferInQueue++;
-        PostMessageW(pThis->hMessageWnd, WM_APP_PACKET, (WPARAM)&pThis->packetBufferInQueue, (LPARAM)pThis->packetBuffer);
-        pThis->packetBuffer = new BYTE[pThis->PACKET_BUFFER_SIZE];
-        pThis->packetBufferPosition = 0;
+        PostMessageW(pThis->hMessageWnd, WM_APP_PACKET, 0, 0);
     }
     return TRUE;
 }
@@ -365,66 +415,76 @@ LRESULT CALLBACK CDataBroadcastingWV2::MessageWndProc(HWND hWnd, UINT uMsg, WPAR
     }
     case WM_APP_PACKET:
     {
-        auto packetBufferInQueue = (std::atomic<int>*)wParam;
-        auto buffer = (BYTE*)lParam;
-        if (pThis->webView)
+        while (true)
         {
+            auto packets = pThis->packetQueue.pop();
+            if (!packets)
+            {
+                break;
+            }
+            if (!pThis->webView)
+            {
+                continue;
+            }
             WCHAR head[] = LR"({"type":"stream","data":[)";
             WCHAR tail[] = LR"(]})";
-            size_t size = _countof(head) - 1 + pThis->PACKET_BUFFER_SIZE * 4 /* '255,' */ + _countof(tail) + 1;
-            auto buf = new WCHAR[size];
-            wcscpy_s(buf, size, head);
-            size_t pos = 0;
-            pos += wcslen(head);
-            for (size_t p = 0; p < pThis->PACKET_BUFFER_SIZE; p += PACKET_SIZE)
+            auto packetBlockSize = pThis->packetQueue.packetBlockSize;
+            auto packetSize = pThis->packetQueue.packetSize;
+            size_t size = _countof(head) - 1 + packetBlockSize * 4 /* '255,' */ + _countof(tail) + 1;
+            std::unique_ptr<WCHAR[]> buf_ptr(new WCHAR[size]);
             {
-                // 動画、音声のPESは不要なので削っておく
-                // StreamCallbackで削っておきたいけどやや処理が複雑になるのでこっちで
-                // 8-bit sync byte
-                // 1-bit TEI
-                // 1-bit PUSI
-                // 1-bit priority
-                // 13-bit PID
-                auto pid = ((buffer[p + 1] << 8) | buffer[p + 2]) & 0x1fff;
-                if (pThis->pesPIDList.find(pid) != pThis->pesPIDList.end())
+                auto buf = buf_ptr.get();
+                wcscpy_s(buf, size, head);
+                size_t pos = 0;
+                pos += wcslen(head);
+                auto buffer = packets.value().data();
+                for (size_t p = 0; p < packetBlockSize; p += packetSize)
                 {
-                    continue;
+                    // 動画、音声のPESは不要なので削っておく
+                    // StreamCallbackで削っておきたいけどやや処理が複雑になるのでこっちで
+                    // 8-bit sync byte
+                    // 1-bit TEI
+                    // 1-bit PUSI
+                    // 1-bit priority
+                    // 13-bit PID
+                    auto pid = ((buffer[p + 1] << 8) | buffer[p + 2]) & 0x1fff;
+                    if (pThis->pesPIDList.find(pid) != pThis->pesPIDList.end())
+                    {
+                        continue;
+                    }
+                    for (size_t i = p; i < p + packetSize; i++)
+                    {
+                        // デバッグビルドだからかitowとか遅すぎて間に合わないので自前でやる
+                        if (buffer[i] < 10)
+                        {
+                            buf[pos] = L'0' + buffer[i];
+                            pos += 1;
+                        }
+                        else if (buffer[i] < 100)
+                        {
+                            buf[pos] = L'0' + (buffer[i] / 10);
+                            pos += 1;
+                            buf[pos] = L'0' + (buffer[i] % 10);
+                            pos += 1;
+                        }
+                        else
+                        {
+                            buf[pos] = L'0' + (buffer[i] / 100);
+                            pos += 1;
+                            buf[pos] = L'0' + ((buffer[i] / 10) % 10);
+                            pos += 1;
+                            buf[pos] = L'0' + (buffer[i] % 10);
+                            pos += 1;
+                        }
+                        buf[pos] = L',';
+                        pos += 1;
+                    }
                 }
-                for (size_t i = p; i < p + PACKET_SIZE; i++)
-                {
-                    // デバッグビルドだからかitowとか遅すぎて間に合わないので自前でやる
-                    if (buffer[i] < 10)
-                    {
-                        buf[pos] = L'0' + buffer[i];
-                        pos += 1;
-                    }
-                    else if (buffer[i] < 100)
-                    {
-                        buf[pos] = L'0' + (buffer[i] / 10);
-                        pos += 1;
-                        buf[pos] = L'0' + (buffer[i] % 10);
-                        pos += 1;
-                    }
-                    else
-                    {
-                        buf[pos] = L'0' + (buffer[i] / 100);
-                        pos += 1;
-                        buf[pos] = L'0' + ((buffer[i] / 10) % 10);
-                        pos += 1;
-                        buf[pos] = L'0' + (buffer[i] % 10);
-                        pos += 1;
-                    }
-                    buf[pos] = L',';
-                    pos += 1;
-                }
+                pos--;
+                wcscpy_s(buf + pos, size - pos, tail);
+                auto hr = pThis->webView->PostWebMessageAsJson(buf);
             }
-            pos--;
-            wcscpy_s(buf + pos, size - pos, tail);
-            auto hr = pThis->webView->PostWebMessageAsJson(buf);
-            delete[] buf;
         }
-        delete[] buffer;
-        (*packetBufferInQueue)--;
         break;
     }
     }
@@ -684,6 +744,7 @@ void CDataBroadcastingWV2::InitWebView2()
             this->webView->add_NavigationCompleted(Callback<ICoreWebView2NavigationCompletedEventHandler>(
                 [this](ICoreWebView2* sender, ICoreWebView2NavigationCompletedEventArgs* args) -> HRESULT {
                 this->UpdateCaptionState();
+                this->webViewLoaded = true;
                 return S_OK;
             }).Get(), &token);
             this->Tune();
@@ -769,10 +830,9 @@ bool CDataBroadcastingWV2::OnPluginEnable(bool fEnable)
             this->webViewController->Close();
             this->webViewController.reset();
         }
+        this->webViewLoaded = false;
 
-        std::lock_guard<std::mutex> lock(this->packetBufferLock);
-        this->packetBufferInQueue = 0;
-        this->packetBufferPosition = 0;
+        this->packetQueue.clear();
     }
     return true;
 }
@@ -790,7 +850,7 @@ void CDataBroadcastingWV2::Tune()
             if (_wcsicmp(source.get(), baseUrl.c_str()))
             {
                 this->RestoreVideoWindow();
-                // FIXME!! packetBufferは廃棄すべき
+                this->packetQueue.clear();
                 this->webView->Navigate(baseUrl.c_str());
             }
         }
@@ -859,9 +919,9 @@ void CDataBroadcastingWV2::UpdateCaptionState()
 
 void CDataBroadcastingWV2::SetCaptionState(bool enable)
 {
+    this->caption = enable;
     if (this->hRemoteWnd)
     {
-        this->caption = enable;
         SendDlgItemMessageW(this->hRemoteWnd, IDC_TOGGLE_CAPTION, BM_SETCHECK, this->caption ? BST_CHECKED : BST_UNCHECKED, 0);
     }
     this->UpdateCaptionState();
