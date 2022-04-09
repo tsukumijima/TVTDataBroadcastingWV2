@@ -1,10 +1,5 @@
 ﻿#include "pch.h"
 
-#include <strmif.h>
-#include <control.h>
-#include <dshow.h>
-#include <d3d9.h>
-#include <vmr9.h>
 #define TVTEST_PLUGIN_CLASS_IMPLEMENT
 #include "thirdparty/TVTestPlugin.h"
 #include "resource.h"
@@ -108,7 +103,7 @@ bool CDataBroadcastingWV2::GetPluginInfo(TVTest::PluginInfo* pInfo)
     pInfo->Type = TVTest::PLUGIN_TYPE_NORMAL;
     pInfo->Flags = TVTest::PLUGIN_FLAG_DISABLEONSTART | TVTest::PLUGIN_FLAG_HASSETTINGS;
     pInfo->pszPluginName = L"TVTDataBroadcastingWV2";
-    pInfo->pszCopyright = L"MIT License";
+    pInfo->pszCopyright = L"2022 otya";
     pInfo->pszDescription = L"データ放送を表示";
     return true;
 }
@@ -878,7 +873,10 @@ bool CDataBroadcastingWV2::OnCommand(int ID)
     {
         if (ID == IDC_KEY_D_OR_ENABLE_PLUGIN)
         {
-            this->m_pApp->EnablePlugin(true);
+            if (!this->m_pApp->IsPluginEnabled())
+            {
+                this->m_pApp->EnablePlugin(true);
+            }
         }
         return false;
     }
