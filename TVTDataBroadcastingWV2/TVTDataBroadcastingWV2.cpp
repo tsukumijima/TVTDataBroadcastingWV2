@@ -332,6 +332,7 @@ bool CDataBroadcastingWV2::Initialize()
     m_pApp->RegisterCommand(IDC_ENABLE_CAPTION, L"EnableCaption", L"字幕表示");
     m_pApp->RegisterCommand(IDC_DISABLE_CAPTION, L"DisableCaption", L"字幕非表示");
     m_pApp->RegisterCommand(IDC_SHOW_REMOTE_CONTROL, L"ShowRemoteControl", L"リモコン表示");
+    m_pApp->RegisterCommand(IDC_TASKMANAGER, L"TaskManager", L"タスクマネージャー");
     m_pApp->RegisterPluginIconFromResource(g_hinstDLL, MAKEINTRESOURCEW(IDB_PLUGIN));
     TVTest::StatusItemInfo statusItemInfo = {};
     statusItemInfo.Size = sizeof(statusItemInfo);
@@ -1043,6 +1044,15 @@ bool CDataBroadcastingWV2::OnCommand(int ID)
             if ((HWND)this->m_pApp->ShowDialog(&Info) == nullptr)
                 return false;
             ShowWindow(this->hRemoteWnd, SW_SHOW);
+        }
+        break;
+    }
+    case IDC_TASKMANAGER:
+    {
+        auto webView6 = this->webView.try_query<ICoreWebView2_6>();
+        if (webView6)
+        {
+            webView6->OpenTaskManagerWindow();
         }
         break;
     }
