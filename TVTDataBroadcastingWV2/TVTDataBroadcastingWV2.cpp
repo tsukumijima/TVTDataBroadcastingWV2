@@ -120,6 +120,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     TVTest::ChannelInfo currentChannel = {};
     std::unordered_set<WORD> pesPIDList;
     Status status;
+    bool deferWebView = false;
     virtual bool OnChannelChange();
     virtual bool OnServiceChange();
     virtual bool OnServiceUpdate();
@@ -347,6 +348,10 @@ bool CDataBroadcastingWV2::Initialize()
     statusItemInfo.DefaultWidth = TVTest::StatusItemWidthByFontSize(10);
     statusItemInfo.MinHeight = 0;
     m_pApp->RegisterStatusItem(&statusItemInfo);
+    if (this->GetIniItem(L"AutoEnable", 0))
+    {
+        m_pApp->EnablePlugin(true);
+    }
     return true;
 }
 
@@ -567,6 +572,11 @@ void CDataBroadcastingWV2::OnFilterGraphInitialized(TVTest::FilterGraphInfo* pIn
         this->hVideoWnd = this->hContainerWnd;
         this->hContainerWnd = GetParent(this->hContainerWnd);
     }
+    if (this->deferWebView)
+    {
+        this->deferWebView = false;
+        this->InitWebView2();
+    }
     if (this->hVideoWnd)
     {
         // madVR EVR EVR (Custom Renderer)
@@ -604,6 +614,11 @@ std::wstring utf8StrToWString(const char* s)
 
 void CDataBroadcastingWV2::InitWebView2()
 {
+    if (!this->hContainerWnd)
+    {
+        this->deferWebView = true;
+        return;
+    }
     LPCWSTR webView2Directory = nullptr;
     if (std::filesystem::is_directory(std::filesystem::path(this->webView2Directory) / L"EBWebView"))
     {
@@ -1147,6 +1162,10 @@ INT_PTR CALLBACK CDataBroadcastingWV2::SettingsDlgProc(HWND hDlg, UINT uMsg, WPA
         {
             SendDlgItemMessageW(hDlg, IDC_CHECK_DISABLE_REMOTECON, BM_SETCHECK, BST_CHECKED, 0);
         }
+        if (pThis->GetIniItem(L"AutoEnable", 0))
+        {
+            SendDlgItemMessageW(hDlg, IDC_CHECK_AUTOENABLE, BM_SETCHECK, BST_CHECKED, 0);
+        }
         return 1;
     }
     case WM_COMMAND:
@@ -1157,6 +1176,13 @@ INT_PTR CALLBACK CDataBroadcastingWV2::SettingsDlgProc(HWND hDlg, UINT uMsg, WPA
             {
                 auto disableRemoteControl = SendDlgItemMessageW(hDlg, IDC_CHECK_DISABLE_REMOTECON, BM_GETCHECK, 0, 0);
                 if (!pThis->SetIniItem(L"DisableRemoteControl", disableRemoteControl ? L"1" : L"0"))
+                {
+                    MessageBoxW(hDlg, L"設定を保存できませんでした", L"TVTDataBroadcastingWV2の設定", MB_ICONERROR | MB_OK);
+                    EndDialog(hDlg, IDCANCEL);
+                    return 1;
+                }
+                auto autoEnable = SendDlgItemMessageW(hDlg, IDC_CHECK_AUTOENABLE, BM_GETCHECK, 0, 0);
+                if (!pThis->SetIniItem(L"AutoEnable", autoEnable ? L"1" : L"0"))
                 {
                     MessageBoxW(hDlg, L"設定を保存できませんでした", L"TVTDataBroadcastingWV2の設定", MB_ICONERROR | MB_OK);
                     EndDialog(hDlg, IDCANCEL);
