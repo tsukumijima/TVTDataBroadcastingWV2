@@ -489,6 +489,7 @@ LRESULT CALLBACK CDataBroadcastingWV2::MessageWndProc(HWND hWnd, UINT uMsg, WPAR
 
 void CDataBroadcastingWV2::OnFilterGraphInitialized(TVTest::FilterGraphInfo* pInfo)
 {
+    bool isRenderless = false;
     // VMR9
     if (SUCCEEDED(pInfo->pGraphBuilder->FindFilterByName(L"VMR9", this->vmr9Renderer.put())))
     {
@@ -497,9 +498,10 @@ void CDataBroadcastingWV2::OnFilterGraphInitialized(TVTest::FilterGraphInfo* pIn
         if (FAILED(filterConfig->GetRenderingMode((DWORD*)&mode)) || mode != VMR9Mode_Windowless)
         {
             // VMR9 (Renderless)
-            // TVTest Video Container側の大きさを変えればいいけど字幕の位置も変わってしまうしフルスクリーンも無理なので微妙
+            // TVTest Video Container側の大きさを変えればいいけど字幕の位置も変わってしまう
             this->vmr9Renderer = nullptr;
-            this->m_pApp->AddLog(L"VMR9 (Renderless)は非対応", TVTest::LOG_TYPE_WARNING);
+            this->m_pApp->AddLog(L"VMR9 (Renderless)は非推奨", TVTest::LOG_TYPE_WARNING);
+            isRenderless = true;
         }
     }
     // システムデフォルト
@@ -560,6 +562,11 @@ void CDataBroadcastingWV2::OnFilterGraphInitialized(TVTest::FilterGraphInfo* pIn
             this->hVideoWnd = hWnd;
         }
     }
+    if (isRenderless)
+    {
+        this->hVideoWnd = this->hContainerWnd;
+        this->hContainerWnd = GetParent(this->hContainerWnd);
+    }
     if (this->hVideoWnd)
     {
         // madVR EVR EVR (Custom Renderer)
@@ -612,6 +619,19 @@ void CDataBroadcastingWV2::InitWebView2()
     CreateCoreWebView2EnvironmentWithOptions(webView2Directory, this->webView2DataDirectory.c_str(), options.Get(),
         Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
             [this, resourceDirectory](HRESULT result, ICoreWebView2Environment* env) -> HRESULT {
+        if (!env)
+        {
+            wchar_t buf[std::numeric_limits<HRESULT>::digits10 + 2]{};
+            _itow_s(result, buf, 16);
+            MessageBoxW(this->m_pApp->GetAppWindow(), (std::wstring(L"WebView2を初期化できませんでした。\nHRESULT = 0x") + buf).c_str(), L"TVTDataBroadcastingWV2", MB_ICONERROR | MB_OK);
+            this->m_pApp->EnablePlugin(false);
+            return S_OK;
+        }
+        wil::unique_cotaskmem_string ver;
+        if (SUCCEEDED(env->get_BrowserVersionString(ver.put())))
+        {
+            this->m_pApp->AddLog((std::wstring(L"WebView2 version: ") + ver.get()).c_str(), TVTest::LOG_TYPE_INFORMATION);
+        }
         env->CreateCoreWebView2Controller(this->hContainerWnd, Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
             [env, this, resourceDirectory](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
             if (FAILED(result))
