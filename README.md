@@ -4,6 +4,8 @@
 
 [web-bml](https://github.com/otya128/web-bml)とWebView2を使ったTVTest用データ放送プラグイン
 
+![動作画面](https://user-images.githubusercontent.com/4075988/162745408-282fb7ab-9826-4e82-b2ab-b1ab347a42b4.png)
+
 ## 動作環境
 
 * TVTest 0.9.0以上
