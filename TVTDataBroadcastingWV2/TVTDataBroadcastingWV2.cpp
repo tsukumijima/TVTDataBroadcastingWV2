@@ -531,25 +531,39 @@ void CDataBroadcastingWV2::OnFilterGraphInitialized(TVTest::FilterGraphInfo* pIn
         }
     }
     std::vector<HWND> childWindows;
-    this->hContainerWnd = FindWindowExW(FindWindowExW(FindWindowExW(this->m_pApp->GetAppWindow(), nullptr, L"TVTest Splitter", nullptr), nullptr, L"TVTest View", nullptr), nullptr, L"TVTest Video Container", nullptr);
+    TVTest::HostInfo info;
+    std::wstring appName(L"TVTest");
+    if (this->m_pApp->GetHostInfo(&info))
+    {
+        appName = info.pszAppName;
+    }
+    auto splitterClass = appName + L" Splitter";
+    auto viewClass = appName + L" View";
+    auto videoContainerClass = appName + L" Video Container";
+    auto notifBarClass = appName + L" Notification Bar";
+    this->hContainerWnd = FindWindowExW(FindWindowExW(FindWindowExW(this->m_pApp->GetAppWindow(), nullptr, splitterClass.c_str(), nullptr), nullptr, viewClass.c_str(), nullptr), nullptr, videoContainerClass.c_str(), nullptr);
     if (!this->hContainerWnd)
     {
-        HWND fullscreen = nullptr;
+        struct Args
+        {
+            std::wstring fullscreenClass;
+            HWND containerWnd;
+        } args = { appName + L" Fullscreen" , nullptr};
         // フルスクリーンのとき
         EnumThreadWindows(GetCurrentThreadId(), [](HWND hWnd, LPARAM lParam) -> BOOL {
-            auto containerWnd = (HWND*)lParam;
+            auto args = (Args*)lParam;
             WCHAR className[100];
             if (GetClassNameW(hWnd, className, _countof(className)))
             {
-                if (!wcscmp(className, L"TVTest Fullscreen"))
+                if (!wcscmp(className, args->fullscreenClass.c_str()))
                 {
-                    *containerWnd = hWnd;
+                    args->containerWnd = hWnd;
                     return false;
                 }
             }
             return true;
-        }, (LPARAM)&fullscreen);
-        this->hContainerWnd = FindWindowExW(FindWindowExW(FindWindowExW(fullscreen, nullptr, L"TVTest Splitter", nullptr), nullptr, L"TVTest View", nullptr), nullptr, L"TVTest Video Container", nullptr);
+        }, (LPARAM)&args);
+        this->hContainerWnd = FindWindowExW(FindWindowExW(FindWindowExW(args.containerWnd, nullptr, splitterClass.c_str(), nullptr), nullptr, viewClass.c_str(), nullptr), nullptr, videoContainerClass.c_str(), nullptr);
     }
     EnumChildWindows(this->hContainerWnd, [](HWND hWnd, LPARAM lParam) -> BOOL {
         auto childWindows = (std::vector<HWND>*)lParam;
@@ -567,7 +581,7 @@ void CDataBroadcastingWV2::OnFilterGraphInitialized(TVTest::FilterGraphInfo* pIn
         WCHAR className[100];
         if (GetClassNameW(hWnd, className, _countof(className)))
         {
-            if (!wcscmp(className, L"TVTest Notification Bar"))
+            if (!wcscmp(className, notifBarClass.c_str()))
             {
                 continue;
             }
