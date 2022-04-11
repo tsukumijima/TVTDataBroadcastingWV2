@@ -1,0 +1,3 @@
+[submodule "browser/web-bml"]
+	path = browser/web-bml
+	url = https://github.com/otya128/web-bml.git
