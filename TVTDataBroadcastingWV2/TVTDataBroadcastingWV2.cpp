@@ -116,6 +116,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     wil::com_ptr<IBaseFilter> vmr9Renderer;
     bool invisible = false;
     RECT videoRect = {};
+    RECT containerRect = {};
     TVTest::ServiceInfo currentService = {};
     TVTest::ChannelInfo currentChannel = {};
     std::unordered_set<WORD> pesPIDList;
@@ -382,6 +383,15 @@ LRESULT CALLBACK CDataBroadcastingWV2::MessageWndProc(HWND hWnd, UINT uMsg, WPAR
         }
         case IDT_RESIZE:
         {
+            RECT rect;
+            if (GetClientRect(pThis->hContainerWnd, &rect))
+            {
+                if (memcmp(&pThis->containerRect, &rect, sizeof(RECT)))
+                {
+                    pThis->containerRect = rect;
+                    pThis->webViewController->put_Bounds(rect);
+                }
+            }
             if (!pThis->invisible)
             {
                 pThis->ResizeVideoWindow();
@@ -402,6 +412,7 @@ LRESULT CALLBACK CDataBroadcastingWV2::MessageWndProc(HWND hWnd, UINT uMsg, WPAR
             RECT rect;
             if (GetClientRect(pThis->hContainerWnd, &rect))
             {
+                pThis->containerRect = rect;
                 RECT prev;
                 if (SUCCEEDED(pThis->webViewController->get_Bounds(&prev)))
                 {
@@ -892,7 +903,7 @@ void CDataBroadcastingWV2::Tune()
         wil::unique_cotaskmem_string source;
         if (SUCCEEDED(this->webView->get_Source(source.put())))
         {
-            std::wstring baseUrl(L"https://TVTDataBroadcastingWV2.invalid/public/TVTestBML.html?serviceId=");
+            std::wstring baseUrl(L"https://TVTDataBroadcastingWV2.invalid/TVTDataBroadcastingWV2.html?serviceId=");
             baseUrl += std::to_wstring(this->currentService.ServiceID);
             if (_wcsicmp(source.get(), baseUrl.c_str()))
             {
