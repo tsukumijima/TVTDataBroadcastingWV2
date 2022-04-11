@@ -383,18 +383,21 @@ LRESULT CALLBACK CDataBroadcastingWV2::MessageWndProc(HWND hWnd, UINT uMsg, WPAR
         }
         case IDT_RESIZE:
         {
-            RECT rect;
-            if (GetClientRect(pThis->hContainerWnd, &rect))
+            if (pThis->webViewController)
             {
-                if (memcmp(&pThis->containerRect, &rect, sizeof(RECT)))
+                RECT rect;
+                if (GetClientRect(pThis->hContainerWnd, &rect))
                 {
-                    pThis->containerRect = rect;
-                    pThis->webViewController->put_Bounds(rect);
+                    if (memcmp(&pThis->containerRect, &rect, sizeof(RECT)))
+                    {
+                        pThis->containerRect = rect;
+                        pThis->webViewController->put_Bounds(rect);
+                    }
                 }
-            }
-            if (!pThis->invisible)
-            {
-                pThis->ResizeVideoWindow();
+                if (!pThis->invisible)
+                {
+                    pThis->ResizeVideoWindow();
+                }
             }
             break;
         }
