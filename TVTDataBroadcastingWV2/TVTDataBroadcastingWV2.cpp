@@ -1004,6 +1004,25 @@ void CDataBroadcastingWV2::SetCaptionState(bool enable)
 
 bool CDataBroadcastingWV2::OnCommand(int ID)
 {
+    if (ID == IDC_SHOW_REMOTE_CONTROL)
+    {
+        if (!this->hRemoteWnd)
+        {
+            TVTest::ShowDialogInfo Info;
+
+            Info.Flags = TVTest::SHOW_DIALOG_FLAG_MODELESS;
+            Info.hinst = g_hinstDLL;
+            Info.pszTemplate = MAKEINTRESOURCE(IDD_REMOTE_CONTROL);
+            Info.pMessageFunc = RemoteControlDlgProc;
+            Info.pClientData = this;
+            Info.hwndOwner = this->m_pApp->GetAppWindow();
+
+            if ((HWND)this->m_pApp->ShowDialog(&Info) == nullptr)
+                return false;
+            ShowWindow(this->hRemoteWnd, SW_SHOW);
+        }
+        return true;
+    }
     if (!this->webView)
     {
         if (ID == IDC_KEY_D_OR_ENABLE_PLUGIN)
@@ -1011,6 +1030,7 @@ bool CDataBroadcastingWV2::OnCommand(int ID)
             if (!this->m_pApp->IsPluginEnabled())
             {
                 this->m_pApp->EnablePlugin(true);
+                return true;
             }
         }
         return false;
@@ -1102,25 +1122,6 @@ bool CDataBroadcastingWV2::OnCommand(int ID)
     case IDC_DISABLE_CAPTION:
         this->SetCaptionState(false);
         break;
-    case IDC_SHOW_REMOTE_CONTROL:
-    {
-        if (!this->hRemoteWnd)
-        {
-            TVTest::ShowDialogInfo Info;
-
-            Info.Flags = TVTest::SHOW_DIALOG_FLAG_MODELESS;
-            Info.hinst = g_hinstDLL;
-            Info.pszTemplate = MAKEINTRESOURCE(IDD_REMOTE_CONTROL);
-            Info.pMessageFunc = RemoteControlDlgProc;
-            Info.pClientData = this;
-            Info.hwndOwner = this->m_pApp->GetAppWindow();
-
-            if ((HWND)this->m_pApp->ShowDialog(&Info) == nullptr)
-                return false;
-            ShowWindow(this->hRemoteWnd, SW_SHOW);
-        }
-        break;
-    }
     case IDC_TASKMANAGER:
     {
         auto webView6 = this->webView.try_query<ICoreWebView2_6>();
