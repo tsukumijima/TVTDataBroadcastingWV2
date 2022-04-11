@@ -1,5 +1,7 @@
 # TVTDataBroadcastingWV2
 
+ダウンロード https://github.com/otya128/TVTDataBroadcastingWV2/releases
+
 [web-bml](https://github.com/otya128/web-bml)とWebView2を使ったTVTest用データ放送プラグイン
 
 ## 動作環境
