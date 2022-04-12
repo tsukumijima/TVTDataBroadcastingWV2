@@ -28,6 +28,20 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+      with:
+        submodules: 'recursive'
+
+    - name: Setup variable
+      env:
+        ARCH: ${{ matrix.PLATFORM }}
+        GIT_SHA: ${{ github.sha }}
+      id: name
+      run: |
+          $t=[System.DateTimeOffset]::Now.ToOffset([System.TimeSpan]::FromHours(9)).ToString("yyyy-MM-dd-HH-mm-ss")
+          $sha=$env:GIT_SHA.Substring(0, 12)
+          $dir="TVTDataBroadcastingWV2-$t-$sha-$env:ARCH"
+          Write-Output "::set-output name=DIR_NAME::$dir"
+          Write-Output "::set-output name=VERSION::$t-$sha-$env:ARCH"
 
     - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v1.0.2
@@ -37,24 +51,65 @@ jobs:
       run: nuget restore ${{env.SOLUTION_FILE_PATH}}
 
     - name: Build tvtp
-      working-directory: ${{ env.GITHUB_WORKSPACE}}
+      working-directory: ${{env.GITHUB_WORKSPACE}}
       # Add additional options to the MSBuild command line here (like platform or verbosity level).
       # See https://docs.microsoft.com/visualstudio/msbuild/msbuild-command-line-reference
-      run: msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=${{matrix.PLATFORM}} ${{env.SOLUTION_FILE_PATH}}
+      run: msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=${{matrix.PLATFORM}} /p:TVTDataBroadcastingWV2Version=${{steps.name.outputs.VERSION}} ${{env.SOLUTION_FILE_PATH}}
 
     - uses: actions/setup-node@v3
       with:
         node-version: '16'
         cache: 'yarn'
+        cache-dependency-path: ./browser/yarn.lock
 
     - name: install npm packages
-      working-directory: ${{ github.workspace }}/browser/
+      working-directory: ./browser/
       run: yarn install
 
     - name: Build depends
-      working-directory: ${{ github.workspace }}/browser/
+      working-directory: ./browser/
       run: yarn workspace @chinachu/aribts build
-  
+
     - name: Build web-bml
-      working-directory: ${{ github.workspace }}/browser/
+      working-directory: ./browser/
       run: yarn run build
+
+    - name: Cache fonts
+      id: cache-fonts
+      uses: actions/cache@v3
+      with:
+        path: ./fonts
+        key: fonts
+
+    - name: Download fonts
+      if: steps.cache-fonts.outputs.cache-hit != 'true'
+      run: |
+        mkdir fonts
+        curl https://raw.githubusercontent.com/googlefonts/kosugi-maru/bd22c671a9ffc10cc4313e6f2fd75f2b86d6b14b/fonts/ttf/KosugiMaru-Regular.ttf -o fonts/KosugiMaru-Regular.ttf
+        curl https://raw.githubusercontent.com/googlefonts/kosugi-maru/b324f10f33b6c075daa3b147d7ace45284f6015a/LICENSE.txt -o fonts/KosugiMaru-Regular-LICENSE.txt
+        curl https://raw.githubusercontent.com/googlefonts/kosugi/75171a2738135ab888549e76a9037e826094f0ce/fonts/ttf/Kosugi-Regular.ttf -o fonts/Kosugi-Regular.ttf
+        curl https://raw.githubusercontent.com/googlefonts/kosugi/04ea738326d9d7ec2389bd6c2989245372de2595/LICENSE.txt -o fonts/Kosugi-Regular-LICENSE.txt
+      shell: cmd
+
+    - name: Prepare artifact
+      env:
+        DIR: ${{ steps.name.outputs.DIR_NAME }}
+      run: |
+          $dir="$env:DIR"
+          mkdir artifact/$dir/
+          copy LICENSE artifact/$dir/TVTDataBroadcastingWV2-LICENSE
+          copy LICENSE.nlohmann.json.txt artifact/$dir/TVTDataBroadcastingWV2-LICENSE.json.txt
+          copy README.md artifact/$dir/TVTDataBroadcastingWV2-README.txt
+          copy -ErrorAction:SilentlyContinue Release/TVTDataBroadcastingWV2.tvtp artifact/$dir/ || copy x64/Release/TVTDataBroadcastingWV2.tvtp artifact/$dir/
+          mkdir artifact/$dir/TVTDataBroadcastingWV2/resources/dist/
+          copy browser/dist/TVTDataBroadcastingWV2.js artifact/$dir/TVTDataBroadcastingWV2/resources/dist/
+          copy fonts/* artifact/$dir/TVTDataBroadcastingWV2/resources/dist/
+          copy browser/dist/TVTDataBroadcastingWV2.js.LICENSE.txt artifact/$dir/TVTDataBroadcastingWV2/resources/dist/
+          copy browser/TVTDataBroadcastingWV2.html artifact/$dir/TVTDataBroadcastingWV2/resources/
+
+    - name: Generate artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ steps.name.outputs.DIR_NAME }}
+        path: |
+          artifact/

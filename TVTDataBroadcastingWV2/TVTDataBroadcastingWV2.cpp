@@ -173,7 +173,13 @@ bool CDataBroadcastingWV2::GetPluginInfo(TVTest::PluginInfo* pInfo)
     pInfo->Flags = TVTest::PLUGIN_FLAG_DISABLEONSTART | TVTest::PLUGIN_FLAG_HASSETTINGS;
     pInfo->pszPluginName = L"TVTDataBroadcastingWV2";
     pInfo->pszCopyright = L"2022 otya";
+#if (TVTDATABROADCASTINGWV2_VERSION + 0)
+#define WSTRSTR(x) L## #x
+#define WSTR(x) WSTRSTR(x)
+    pInfo->pszDescription = L"データ放送を表示" WSTR(TVTDATABROADCASTINGWV2_VERSION);
+#else
     pInfo->pszDescription = L"データ放送を表示";
+#endif
     return true;
 }
 
@@ -341,6 +347,7 @@ bool CDataBroadcastingWV2::Initialize()
     m_pApp->RegisterCommand(IDC_KEY_DEVTOOL, L"OpenDevTools", L"開発者ツール");
     m_pApp->RegisterCommand(IDC_ENABLE_CAPTION, L"EnableCaption", L"字幕表示");
     m_pApp->RegisterCommand(IDC_DISABLE_CAPTION, L"DisableCaption", L"字幕非表示");
+    m_pApp->RegisterCommand(IDC_TOGGLE_CAPTION, L"ToggleCaption", L"字幕表示/非表示切替");
     m_pApp->RegisterCommand(IDC_SHOW_REMOTE_CONTROL, L"ShowRemoteControl", L"リモコン表示");
     m_pApp->RegisterCommand(IDC_TASKMANAGER, L"TaskManager", L"タスクマネージャー");
     m_pApp->RegisterPluginIconFromResource(g_hinstDLL, MAKEINTRESOURCEW(IDB_PLUGIN));
