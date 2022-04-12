@@ -173,10 +173,8 @@ bool CDataBroadcastingWV2::GetPluginInfo(TVTest::PluginInfo* pInfo)
     pInfo->Flags = TVTest::PLUGIN_FLAG_DISABLEONSTART | TVTest::PLUGIN_FLAG_HASSETTINGS;
     pInfo->pszPluginName = L"TVTDataBroadcastingWV2";
     pInfo->pszCopyright = L"2022 otya";
-#if (TVTDATABROADCASTINGWV2_VERSION + 0)
-#define WSTRSTR(x) L## #x
-#define WSTR(x) WSTRSTR(x)
-    pInfo->pszDescription = L"データ放送を表示" WSTR(TVTDATABROADCASTINGWV2_VERSION);
+#ifdef TVTDATABROADCASTINGWV2_VERSION
+    pInfo->pszDescription = L"データ放送を表示" TVTDATABROADCASTINGWV2_VERSION;
 #else
     pInfo->pszDescription = L"データ放送を表示";
 #endif
