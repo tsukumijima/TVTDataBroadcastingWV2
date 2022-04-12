@@ -114,6 +114,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     HWND hContainerWnd = nullptr;
     HWND hMessageWnd = nullptr;
     HBRUSH hbrPanelBack = nullptr;
+    HFONT hPanelFont = nullptr;
     wil::com_ptr<IBasicVideo> basicVideo;
     wil::com_ptr<IBaseFilter> vmr9Renderer;
     bool invisible = false;
@@ -349,6 +350,7 @@ bool CDataBroadcastingWV2::Initialize()
     panel.pszIDText = L"TVTDataBroadcastingWV2Panel";
     panel.pszTitle = L"データ放送";
     panel.ID = 1;
+    panel.hbmIcon = (HBITMAP)LoadImageW(g_hinstDLL, MAKEINTRESOURCEW(IDB_PLUGIN), IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION);
     m_pApp->RegisterPanelItem(&panel);
     TVTest::StatusItemInfo statusItemInfo = {};
     statusItemInfo.Size = sizeof(statusItemInfo);
@@ -908,6 +910,11 @@ void CDataBroadcastingWV2::Disable(bool finalize)
         DestroyWindow(hWnd);
         DeleteObject(this->hbrPanelBack);
         this->hbrPanelBack = nullptr;
+        if (this->hPanelFont)
+        {
+            DeleteObject(this->hPanelFont);
+            this->hPanelFont = nullptr;
+        }
     }
 }
 
@@ -1335,6 +1342,25 @@ bool CDataBroadcastingWV2::OnPanelItemNotify(TVTest::PanelItemEventInfo* pInfo)
         auto hWnd = (HWND)this->m_pApp->ShowDialog(&Info);
         ShowWindow(hWnd, SW_SHOW);
         createEventInfo->hwndItem = hWnd;
+    }
+    [[fallthrough]];
+    case TVTest::PANEL_ITEM_EVENT_FONTCHANGED:
+    {
+        // フォントが大きすぎるとはみ出してしまうのでフォントの大きさに合わせてボタンの大きさを変更すべきではある
+        // TVTestがやっているように全部自前で描画して処理するのは大変なのでダイアログで妥協
+        if (this->hPanelFont)
+        {
+            DeleteObject(this->hPanelFont);
+        }
+        LOGFONTW lf;
+        m_pApp->GetFont(L"PanelFont", &lf);
+        this->hPanelFont = CreateFontIndirectW(&lf);
+        SendMessageW(this->hPanelWnd, WM_SETFONT, (WPARAM)this->hPanelFont, true);
+        EnumChildWindows(this->hPanelWnd, [](HWND hWnd, LPARAM lParam) -> BOOL {
+            auto hFont = (HFONT)lParam;
+            SendMessageW(hWnd, WM_SETFONT, (WPARAM)hFont, 0);
+            return true;
+        }, (LPARAM)this->hPanelFont);
         break;
     }
     }
