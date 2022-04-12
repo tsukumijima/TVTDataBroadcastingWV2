@@ -108,6 +108,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     PacketQueue packetQueue;
 
     HWND hRemoteWnd = nullptr;
+    HWND hPanelWnd = nullptr;
     HWND hVideoWnd = nullptr;
     HWND hWebViewWnd = nullptr;
     HWND hContainerWnd = nullptr;
@@ -894,6 +895,9 @@ void CDataBroadcastingWV2::Disable(bool finalize)
 
     if (finalize)
     {
+        auto hWnd = this->hPanelWnd;
+        this->hPanelWnd = nullptr;
+        DestroyWindow(hWnd);
         DeleteObject(this->hbrPanelBack);
         this->hbrPanelBack = nullptr;
     }
@@ -1016,6 +1020,7 @@ void CDataBroadcastingWV2::SetCaptionState(bool enable)
     if (this->hRemoteWnd)
     {
         SendDlgItemMessageW(this->hRemoteWnd, IDC_TOGGLE_CAPTION, BM_SETCHECK, this->caption ? BST_CHECKED : BST_UNCHECKED, 0);
+        SendDlgItemMessageW(this->hPanelWnd, IDC_TOGGLE_CAPTION, BM_SETCHECK, this->caption ? BST_CHECKED : BST_UNCHECKED, 0);
     }
     this->UpdateCaptionState();
 }
@@ -1204,9 +1209,23 @@ INT_PTR CALLBACK CDataBroadcastingWV2::PanelRemoteControlDlgProc(HWND hDlg, UINT
     CDataBroadcastingWV2* pThis = static_cast<CDataBroadcastingWV2*>(pClientData);
     switch (uMsg)
     {
+    case WM_INITDIALOG:
+    {
+        pThis->hPanelWnd = hDlg;
+        if (pThis->caption)
+        {
+            SendDlgItemMessageW(hDlg, IDC_TOGGLE_CAPTION, BM_SETCHECK, BST_CHECKED, 0);
+        }
+        return 1;
+    }
     case WM_CTLCOLORBTN:
     case WM_CTLCOLORDLG:
         return (INT_PTR)pThis->hbrPanelBack;
+    case WM_DESTROY:
+    {
+        pThis->hPanelWnd = nullptr;
+        return 1;
+    }
     }
     return RemoteControlDlgProc(hDlg, uMsg, wParam, lParam, pClientData);
 }
@@ -1305,8 +1324,9 @@ bool CDataBroadcastingWV2::OnPanelItemNotify(TVTest::PanelItemEventInfo* pInfo)
         Info.pMessageFunc = PanelRemoteControlDlgProc;
         Info.pClientData = this;
         Info.hwndOwner = createEventInfo->hwndParent;
-        auto a = this->m_pApp->ShowDialog(&Info);
-        ShowWindow((HWND)a, SW_SHOW);
+        auto hWnd = (HWND)this->m_pApp->ShowDialog(&Info);
+        ShowWindow(hWnd, SW_SHOW);
+        createEventInfo->hwndItem = hWnd;
         break;
     }
     }
