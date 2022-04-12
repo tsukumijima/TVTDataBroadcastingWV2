@@ -104,10 +104,15 @@ bmlBrowser.addEventListener("invisible", (evt) => {
 
 bmlBrowser.addEventListener("load", (evt) => {
     console.log("load", evt.detail);
-    browserElement.style.width = evt.detail.resolution.width + "px";
-    browserElement.style.height = evt.detail.resolution.height + "px";
-    ccContainer.style.width = evt.detail.resolution.width + "px";
-    ccContainer.style.height = evt.detail.resolution.height + "px";
+    const width = evt.detail.resolution.width + "px";
+    const height = evt.detail.resolution.height + "px";
+    if (browserElement.style.width !== width || browserElement.style.height !== height) {
+        browserElement.style.width = width;
+        browserElement.style.height = height;
+        ccContainer.style.width = width;
+        ccContainer.style.height = height;
+        onResized();
+    }
 });
 
 type FromWebViewMessage = {
