@@ -62,6 +62,8 @@ const epg: EPG = {
     }
 };
 
+const audioContext = new AudioContext();
+
 const bmlBrowser = new BMLBrowser({
     containerElement: contentElement,
     mediaElement: videoContainer,
@@ -73,6 +75,11 @@ const bmlBrowser = new BMLBrowser({
     },
     epg,
     videoPlaneModeEnabled: true,
+    audioContextProvider: {
+        getAudioContext() {
+            return audioContext;
+        }
+    }
 });
 
 // trueであればデータ放送の上に動画を表示させる非表示状態
