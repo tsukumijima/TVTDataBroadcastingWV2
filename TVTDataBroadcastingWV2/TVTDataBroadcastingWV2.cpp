@@ -1058,6 +1058,9 @@ void CDataBroadcastingWV2::SetCaptionState(bool enable)
     if (this->hRemoteWnd)
     {
         SendDlgItemMessageW(this->hRemoteWnd, IDC_TOGGLE_CAPTION, BM_SETCHECK, this->caption ? BST_CHECKED : BST_UNCHECKED, 0);
+    }
+    if (this->hPanelWnd)
+    {
         SendDlgItemMessageW(this->hPanelWnd, IDC_TOGGLE_CAPTION, BM_SETCHECK, this->caption ? BST_CHECKED : BST_UNCHECKED, 0);
     }
     this->UpdateCaptionState();
