@@ -112,6 +112,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     HWND hWebViewWnd = nullptr;
     HWND hContainerWnd = nullptr;
     HWND hMessageWnd = nullptr;
+    HBRUSH hbrPanelBack = nullptr;
     wil::com_ptr<IBasicVideo> basicVideo;
     wil::com_ptr<IBaseFilter> vmr9Renderer;
     bool invisible = false;
@@ -132,6 +133,8 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     virtual bool OnStatusItemDraw(TVTest::StatusItemDrawInfo* pInfo);
     virtual bool OnFullscreenChange(bool fFullscreen);
     virtual bool OnPluginSettings(HWND hwndOwner);
+    virtual bool OnColorChange();
+    virtual bool OnPanelItemNotify(TVTest::PanelItemEventInfo* pInfo);
 
     void RestoreVideoWindow();
     void ResizeVideoWindow();
@@ -150,6 +153,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
 
     static LRESULT CALLBACK EventCallback(UINT Event, LPARAM lParam1, LPARAM lParam2, void* pClientData);
     static INT_PTR CALLBACK RemoteControlDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam, void* pClientData);
+    static INT_PTR CALLBACK PanelRemoteControlDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam, void* pClientData);
     static INT_PTR CALLBACK SettingsDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam, void* pClientData);
     static BOOL CALLBACK StreamCallback(BYTE* pData, void* pClientData);
     static LRESULT CALLBACK MessageWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -278,7 +282,8 @@ bool CDataBroadcastingWV2::SetIniItem(const wchar_t* key, const wchar_t* data)
 
 bool CDataBroadcastingWV2::Initialize()
 {
-    DWORD size = 10;
+    this->hbrPanelBack = CreateSolidBrush(this->m_pApp->GetColor(L"PanelBack"));
+    DWORD size = 100;
     while (true)
     {
         std::wstring filename(size, 0);
@@ -337,6 +342,13 @@ bool CDataBroadcastingWV2::Initialize()
     m_pApp->RegisterCommand(IDC_SHOW_REMOTE_CONTROL, L"ShowRemoteControl", L"リモコン表示");
     m_pApp->RegisterCommand(IDC_TASKMANAGER, L"TaskManager", L"タスクマネージャー");
     m_pApp->RegisterPluginIconFromResource(g_hinstDLL, MAKEINTRESOURCEW(IDB_PLUGIN));
+    TVTest::PanelItemInfo panel = {};
+    panel.Size = sizeof(panel);
+    panel.Style = TVTest::PANEL_ITEM_STYLE_NEEDFOCUS;
+    panel.pszIDText = L"TVTDataBroadcastingWV2Panel";
+    panel.pszTitle = L"データ放送";
+    panel.ID = 1;
+    m_pApp->RegisterPanelItem(&panel);
     TVTest::StatusItemInfo statusItemInfo = {};
     statusItemInfo.Size = sizeof(statusItemInfo);
     statusItemInfo.ID = 1;
@@ -879,6 +891,12 @@ void CDataBroadcastingWV2::Disable(bool finalize)
         DestroyWindow(hWnd);
         this->hMessageWnd = nullptr;
     }
+
+    if (finalize)
+    {
+        DeleteObject(this->hbrPanelBack);
+        this->hbrPanelBack = nullptr;
+    }
 }
 
 bool CDataBroadcastingWV2::OnPluginEnable(bool fEnable)
@@ -1181,6 +1199,18 @@ INT_PTR CALLBACK CDataBroadcastingWV2::RemoteControlDlgProc(HWND hDlg, UINT uMsg
     return 0;
 }
 
+INT_PTR CALLBACK CDataBroadcastingWV2::PanelRemoteControlDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam, void* pClientData)
+{
+    CDataBroadcastingWV2* pThis = static_cast<CDataBroadcastingWV2*>(pClientData);
+    switch (uMsg)
+    {
+    case WM_CTLCOLORBTN:
+    case WM_CTLCOLORDLG:
+        return (INT_PTR)pThis->hbrPanelBack;
+    }
+    return RemoteControlDlgProc(hDlg, uMsg, wParam, lParam, pClientData);
+}
+
 INT_PTR CALLBACK CDataBroadcastingWV2::SettingsDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam, void* pClientData)
 {
     CDataBroadcastingWV2* pThis = static_cast<CDataBroadcastingWV2*>(pClientData);
@@ -1248,6 +1278,39 @@ bool CDataBroadcastingWV2::OnPluginSettings(HWND hwndOwner)
 
     auto result = this->m_pApp->ShowDialog(&Info);
     return result == IDOK;
+}
+
+bool CDataBroadcastingWV2::OnColorChange()
+{
+    if (this->hbrPanelBack)
+    {
+        DeleteObject(this->hbrPanelBack);
+        this->hbrPanelBack = CreateSolidBrush(this->m_pApp->GetColor(L"PanelBack"));
+    }
+    return true;
+}
+
+bool CDataBroadcastingWV2::OnPanelItemNotify(TVTest::PanelItemEventInfo* pInfo)
+{
+    switch (pInfo->Event)
+    {
+    case TVTest::PANEL_ITEM_EVENT_CREATE:
+    {
+        auto createEventInfo = CONTAINING_RECORD(pInfo, TVTest::PanelItemCreateEventInfo, EventInfo);
+        TVTest::ShowDialogInfo Info;
+
+        Info.Flags = TVTest::SHOW_DIALOG_FLAG_MODELESS;
+        Info.hinst = g_hinstDLL;
+        Info.pszTemplate = MAKEINTRESOURCE(IDD_REMOTE_CONTROL_PANEL);
+        Info.pMessageFunc = PanelRemoteControlDlgProc;
+        Info.pClientData = this;
+        Info.hwndOwner = createEventInfo->hwndParent;
+        auto a = this->m_pApp->ShowDialog(&Info);
+        ShowWindow((HWND)a, SW_SHOW);
+        break;
+    }
+    }
+    return true;
 }
 
 TVTest::CTVTestPlugin* CreatePluginClass()

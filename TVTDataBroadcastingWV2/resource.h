@@ -3,6 +3,7 @@
 #define IDD_REMOTE_CONTROL              101
 #define IDD_SETTING                     102
 #define IDB_PLUGIN                      103
+#define IDD_REMOTE_CONTROL_PANEL        104
 #define IDC_KEY_D                       1000
 #define IDC_KEY_LEFT                    1001
 #define IDC_KEY_RIGHT                   1002
