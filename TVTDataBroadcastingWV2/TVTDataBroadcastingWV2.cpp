@@ -556,7 +556,6 @@ void CDataBroadcastingWV2::OnFilterGraphInitialized(TVTest::FilterGraphInfo* pIn
     auto splitterClass = appName + L" Splitter";
     auto viewClass = appName + L" View";
     auto videoContainerClass = appName + L" Video Container";
-    auto notifBarClass = appName + L" Notification Bar";
     this->hContainerWnd = FindWindowExW(FindWindowExW(FindWindowExW(this->m_pApp->GetAppWindow(), nullptr, splitterClass.c_str(), nullptr), nullptr, viewClass.c_str(), nullptr), nullptr, videoContainerClass.c_str(), nullptr);
     if (!this->hContainerWnd)
     {
@@ -581,31 +580,40 @@ void CDataBroadcastingWV2::OnFilterGraphInitialized(TVTest::FilterGraphInfo* pIn
         }, (LPARAM)&args);
         this->hContainerWnd = FindWindowExW(FindWindowExW(FindWindowExW(args.containerWnd, nullptr, splitterClass.c_str(), nullptr), nullptr, viewClass.c_str(), nullptr), nullptr, videoContainerClass.c_str(), nullptr);
     }
-    EnumChildWindows(this->hContainerWnd, [](HWND hWnd, LPARAM lParam) -> BOOL {
-        auto childWindows = (std::vector<HWND>*)lParam;
-        childWindows->push_back(hWnd);
-        return true;
-    }, (LPARAM)&childWindows);
-    this->hVideoWnd = nullptr;
-    for (auto it = std::rbegin(childWindows); it != std::rend(childWindows); ++it)
+    this->hVideoWnd = FindWindowExW(this->hContainerWnd, nullptr, L"LibISDB EVR Video Window", nullptr);
+    if (this->hVideoWnd == nullptr)
     {
-        auto hWnd = *it;
-        if (GetParent(hWnd) != this->hContainerWnd)
+        this->hVideoWnd = FindWindowExW(this->hContainerWnd, nullptr, L"madVR", nullptr);
+    }
+    if (this->hVideoWnd == nullptr)
+    {
+        auto notifBarClass = appName + L" Notification Bar";
+        auto pseudoOSDClass = appName + L" Pseudo OSD";
+        EnumChildWindows(this->hContainerWnd, [](HWND hWnd, LPARAM lParam) -> BOOL {
+            auto childWindows = (std::vector<HWND>*)lParam;
+            childWindows->push_back(hWnd);
+            return true;
+        }, (LPARAM)&childWindows);
+        for (auto it = std::rbegin(childWindows); it != std::rend(childWindows); ++it)
         {
-            continue;
-        }
-        WCHAR className[100];
-        if (GetClassNameW(hWnd, className, _countof(className)))
-        {
-            if (!wcscmp(className, notifBarClass.c_str()))
+            auto hWnd = *it;
+            if (GetParent(hWnd) != this->hContainerWnd)
             {
                 continue;
             }
-            if (hWnd == hWebViewWnd)
+            WCHAR className[100];
+            if (GetClassNameW(hWnd, className, _countof(className)))
             {
-                continue;
+                if (className == notifBarClass || className == pseudoOSDClass)
+                {
+                    continue;
+                }
+                if (hWnd == hWebViewWnd)
+                {
+                    continue;
+                }
+                this->hVideoWnd = hWnd;
             }
-            this->hVideoWnd = hWnd;
         }
     }
     if (isRenderless)
