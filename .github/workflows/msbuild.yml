@@ -36,8 +36,25 @@ jobs:
       working-directory: ${{env.GITHUB_WORKSPACE}}
       run: nuget restore ${{env.SOLUTION_FILE_PATH}}
 
-    - name: Build
-      working-directory: ${{env.GITHUB_WORKSPACE}}
+    - name: Build tvtp
+      working-directory: ${{ env.GITHUB_WORKSPACE}}
       # Add additional options to the MSBuild command line here (like platform or verbosity level).
       # See https://docs.microsoft.com/visualstudio/msbuild/msbuild-command-line-reference
       run: msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=${{matrix.PLATFORM}} ${{env.SOLUTION_FILE_PATH}}
+
+    - uses: actions/setup-node@v3
+      with:
+        node-version: '16'
+        cache: 'yarn'
+
+    - name: install npm packages
+      working-directory: ${{ github.workspace }}/browser/
+      run: yarn install
+
+    - name: Build depends
+      working-directory: ${{ github.workspace }}/browser/
+      run: yarn workspace @chinachu/aribts build
+  
+    - name: Build web-bml
+      working-directory: ${{ github.workspace }}/browser/
+      run: yarn run build
