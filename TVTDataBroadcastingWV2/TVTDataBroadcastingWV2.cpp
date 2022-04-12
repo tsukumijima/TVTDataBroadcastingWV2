@@ -820,6 +820,29 @@ void CDataBroadcastingWV2::InitWebView2()
                         this->status.loading = loading;
                         this->m_pApp->StatusItemNotify(1, TVTest::STATUS_ITEM_NOTIFY_REDRAW);
                     }
+                    else if (type == "tune")
+                    {
+                        auto originalNetworkId = a["originalNetworkId"].get<int>();
+                        auto transportStreamId = a["transportStreamId"].get<int>();
+                        auto serviceId = a["serviceId"].get<int>();
+                        TVTest::ChannelSelectInfo info = {};
+                        info.Size = sizeof(info);
+                        info.Flags = TVTest::CHANNEL_SELECT_FLAG_STRICTSERVICE;
+                        // FIXME: original_network_idでない
+                        info.NetworkID = originalNetworkId;
+                        info.TransportStreamID = transportStreamId;
+                        info.ServiceID = serviceId;
+                        info.Channel = -1;
+                        info.Space = -1;
+                        if (!this->m_pApp->SelectChannel(&info))
+                        {
+                            this->m_pApp->AddLog((L"選局に失敗しました。(original_network_id=" + std::to_wstring(originalNetworkId) + L",transport_stream_id=" + std::to_wstring(transportStreamId) + L",service_id=" + std::to_wstring(serviceId) + L")").c_str(), TVTest::LOG_TYPE_ERROR);
+                            if (this->webView)
+                            {
+                                this->webView->Reload();
+                            }
+                        }
+                    }
                 }
                 return S_OK;
             }).Get(), &token);

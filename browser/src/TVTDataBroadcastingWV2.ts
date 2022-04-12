@@ -58,7 +58,13 @@ const remoteControl = new StatusBarIndicator(browserElement.querySelector(".remo
 const epg: EPG = {
     tune(originalNetworkId, transportStreamId, serviceId) {
         console.error("tune", originalNetworkId, transportStreamId, serviceId);
-        return false;
+        (window as any).chrome.webview.postMessage({
+            type: "tune",
+            originalNetworkId,
+            transportStreamId,
+            serviceId,
+        } as FromWebViewMessage);
+        return true;
     }
 };
 
@@ -89,7 +95,8 @@ bmlBrowser.addEventListener("invisible", (evt) => {
         contentElement.style.clipPath = "inset(0px)";
     } else {
         contentElement.style.clipPath = "";
-    }    (window as any).chrome.webview.postMessage({
+    }
+    (window as any).chrome.webview.postMessage({
         type: "invisible",
         invisible: evt.detail,
     } as FromWebViewMessage);
@@ -118,6 +125,11 @@ type FromWebViewMessage = {
 } | {
     type: "invisible",
     invisible: boolean,
+} | {
+    type: "tune",
+    originalNetworkId: number,
+    transportStreamId: number,
+    serviceId: number,
 };
 
 bmlBrowser.addEventListener("videochanged", (evt) => {
