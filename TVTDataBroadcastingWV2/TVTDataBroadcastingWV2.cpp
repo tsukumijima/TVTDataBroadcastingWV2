@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 
 #define TVTEST_PLUGIN_CLASS_IMPLEMENT
 #include "thirdparty/TVTestPlugin.h"
@@ -684,18 +684,19 @@ void CDataBroadcastingWV2::InitWebView2()
     if (!std::filesystem::is_directory(resourceDirectory))
     {
         MessageBoxW(this->m_pApp->GetAppWindow(), (L"リソースディレクトリが見つかりません。\n" + resourceDirectory).c_str(), L"TVTDataBroadcastingWV2", MB_ICONERROR | MB_OK);
+        this->m_pApp->EnablePlugin(false);
         return;
     }
     auto options = Microsoft::WRL::Make<CoreWebView2EnvironmentOptions>();
     options->put_AdditionalBrowserArguments(L"--autoplay-policy=no-user-gesture-required");
-    CreateCoreWebView2EnvironmentWithOptions(webView2Directory, this->webView2DataDirectory.c_str(), options.Get(),
+    auto result = CreateCoreWebView2EnvironmentWithOptions(webView2Directory, this->webView2DataDirectory.c_str(), options.Get(),
         Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
             [this, resourceDirectory](HRESULT result, ICoreWebView2Environment* env) -> HRESULT {
         if (!env)
         {
-            wchar_t buf[std::numeric_limits<HRESULT>::digits10 + 2]{};
+            wchar_t buf[9]{};
             _itow_s(result, buf, 16);
-            MessageBoxW(this->m_pApp->GetAppWindow(), (std::wstring(L"WebView2を初期化できませんでした。\nHRESULT = 0x") + buf).c_str(), L"TVTDataBroadcastingWV2", MB_ICONERROR | MB_OK);
+            MessageBoxW(this->m_pApp->GetAppWindow(), (std::wstring(L"WebView2を初期化できませんでした。(ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler)\nHRESULT = 0x") + buf).c_str(), L"TVTDataBroadcastingWV2", MB_ICONERROR | MB_OK);
             this->m_pApp->EnablePlugin(false);
             return S_OK;
         }
@@ -708,9 +709,9 @@ void CDataBroadcastingWV2::InitWebView2()
             [env, this, resourceDirectory](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
             if (FAILED(result))
             {
-                wchar_t buf[std::numeric_limits<HRESULT>::digits10 + 2]{};
+                wchar_t buf[9]{};
                 _itow_s(result, buf, 16);
-                MessageBoxW(this->m_pApp->GetAppWindow(), (std::wstring(L"WebView2を初期化できませんでした。\nHRESULT = 0x") + buf).c_str(), L"TVTDataBroadcastingWV2", MB_ICONERROR | MB_OK);
+                MessageBoxW(this->m_pApp->GetAppWindow(), (std::wstring(L"WebView2を初期化できませんでした。(ICoreWebView2CreateCoreWebView2ControllerCompletedHandler)\nHRESULT = 0x") + buf).c_str(), L"TVTDataBroadcastingWV2", MB_ICONERROR | MB_OK);
                 this->m_pApp->EnablePlugin(false);
                 return S_OK;
             }
@@ -863,6 +864,21 @@ void CDataBroadcastingWV2::InitWebView2()
         }).Get());
         return S_OK;
     }).Get());
+    if (FAILED(result))
+    {
+        wchar_t buf[9]{};
+        _itow_s(result, buf, 16);
+
+        if (result == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND))
+        {
+            MessageBoxW(this->m_pApp->GetAppWindow(), (std::wstring(L"WebView2を初期化できませんでした。(CreateCoreWebView2EnvironmentWithOptions)\nWebView2がインストールされていない可能性があります。\nHRESULT = 0x") + buf).c_str(), L"TVTDataBroadcastingWV2", MB_ICONERROR | MB_OK);
+        }
+        else
+        {
+            MessageBoxW(this->m_pApp->GetAppWindow(), (std::wstring(L"WebView2を初期化できませんでした。(CreateCoreWebView2EnvironmentWithOptions)\nHRESULT = 0x") + buf).c_str(), L"TVTDataBroadcastingWV2", MB_ICONERROR | MB_OK);
+        }
+        this->m_pApp->EnablePlugin(false);
+    }
 }
 
 void CDataBroadcastingWV2::ResizeVideoWindow()
