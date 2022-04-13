@@ -38,7 +38,7 @@
 #define IDC_KEY_D_OR_ENABLE_PLUGIN      1036
 #define IDC_TASKMANAGER                 1037
 #define IDC_CHECK_AUTOENABLE            1038
-#define IDC_STATIC                      -1
+#define IDC_KEY_SETTINGS                1039
 
 // Next default values for new objects
 // 

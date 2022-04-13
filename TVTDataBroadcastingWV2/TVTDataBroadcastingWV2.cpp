@@ -1,4 +1,4 @@
-#include "pch.h"
+﻿#include "pch.h"
 
 #define TVTEST_PLUGIN_CLASS_IMPLEMENT
 #include "thirdparty/TVTestPlugin.h"
@@ -1107,6 +1107,14 @@ bool CDataBroadcastingWV2::OnCommand(int ID)
             ShowWindow(this->hRemoteWnd, SW_SHOW);
         }
         return true;
+    }
+    if (ID == IDC_KEY_SETTINGS)
+    {
+        if (this->m_pApp->GetFullscreen())
+        {
+            return false;
+        }
+        return this->OnPluginSettings(this->m_pApp->GetAppWindow());
     }
     if (!this->webView)
     {
