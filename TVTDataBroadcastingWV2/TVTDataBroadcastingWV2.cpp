@@ -149,6 +149,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     INT GetIniItem(const wchar_t* key, INT def);
     bool SetIniItem(const wchar_t* key, const wchar_t* data);
     void Disable(bool finalize);
+    void EnablePanelButtons(bool enable);
 
     wil::com_ptr<ICoreWebView2Controller> webViewController;
     wil::com_ptr<ICoreWebView2> webView;
@@ -985,9 +986,11 @@ bool CDataBroadcastingWV2::OnPluginEnable(bool fEnable)
         m_pApp->SetWindowMessageCallback(WindowMessageCallback, this);
         InitWebView2();
         SetTimer(this->hMessageWnd, IDT_RESIZE, 1000, nullptr);
+        this->EnablePanelButtons(true);
     }
     else
     {
+        this->EnablePanelButtons(false);
         this->Disable(false);
     }
     return true;
@@ -1274,6 +1277,22 @@ INT_PTR CALLBACK CDataBroadcastingWV2::RemoteControlDlgProc(HWND hDlg, UINT uMsg
     return 0;
 }
 
+void CDataBroadcastingWV2::EnablePanelButtons(bool enable)
+{
+    if (!this->hPanelWnd)
+    {
+        return;
+    }
+    EnumChildWindows(this->hPanelWnd, [](HWND hWnd, LPARAM lParam) -> BOOL {
+        auto id = GetDlgCtrlID(hWnd);
+        if (id != IDC_KEY_D_OR_ENABLE_PLUGIN && id != IDC_KEY_SETTINGS)
+        {
+            EnableWindow(hWnd, (bool)lParam);
+        }
+        return true;
+    }, (LPARAM)enable);
+}
+
 INT_PTR CALLBACK CDataBroadcastingWV2::PanelRemoteControlDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam, void* pClientData)
 {
     CDataBroadcastingWV2* pThis = static_cast<CDataBroadcastingWV2*>(pClientData);
@@ -1397,6 +1416,7 @@ bool CDataBroadcastingWV2::OnPanelItemNotify(TVTest::PanelItemEventInfo* pInfo)
         auto hWnd = (HWND)this->m_pApp->ShowDialog(&Info);
         ShowWindow(hWnd, SW_SHOW);
         createEventInfo->hwndItem = hWnd;
+        this->EnablePanelButtons(this->m_pApp->IsPluginEnabled());
     }
     [[fallthrough]];
     case TVTest::PANEL_ITEM_EVENT_FONTCHANGED:
