@@ -139,6 +139,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     virtual bool OnColorChange();
     virtual bool OnPanelItemNotify(TVTest::PanelItemEventInfo* pInfo);
 
+    HWND GetFullscreenWindow();
     void RestoreVideoWindow();
     void ResizeVideoWindow();
     void Tune();
@@ -528,6 +529,36 @@ LRESULT CALLBACK CDataBroadcastingWV2::MessageWndProc(HWND hWnd, UINT uMsg, WPAR
     return DefWindowProcW(hWnd, uMsg, wParam, lParam);
 }
 
+HWND CDataBroadcastingWV2::GetFullscreenWindow()
+{
+    TVTest::HostInfo info;
+    std::wstring appName(L"TVTest");
+    if (this->m_pApp->GetHostInfo(&info))
+    {
+        appName = info.pszAppName;
+    }
+    struct Args
+    {
+        std::wstring fullscreenClass;
+        HWND containerWnd;
+    } args = { appName + L" Fullscreen" , nullptr };
+    // フルスクリーンのとき
+    EnumThreadWindows(GetCurrentThreadId(), [](HWND hWnd, LPARAM lParam) -> BOOL {
+        auto args = (Args*)lParam;
+        WCHAR className[100];
+        if (GetClassNameW(hWnd, className, _countof(className)))
+        {
+            if (!wcscmp(className, args->fullscreenClass.c_str()))
+            {
+                args->containerWnd = hWnd;
+                return false;
+            }
+        }
+        return true;
+    }, (LPARAM)&args);
+    return args.containerWnd;
+}
+
 void CDataBroadcastingWV2::OnFilterGraphInitialized(TVTest::FilterGraphInfo* pInfo)
 {
     bool isRenderless = false;
@@ -582,26 +613,8 @@ void CDataBroadcastingWV2::OnFilterGraphInitialized(TVTest::FilterGraphInfo* pIn
     this->hContainerWnd = FindWindowExW(FindWindowExW(FindWindowExW(this->m_pApp->GetAppWindow(), nullptr, splitterClass.c_str(), nullptr), nullptr, viewClass.c_str(), nullptr), nullptr, videoContainerClass.c_str(), nullptr);
     if (!this->hContainerWnd)
     {
-        struct Args
-        {
-            std::wstring fullscreenClass;
-            HWND containerWnd;
-        } args = { appName + L" Fullscreen" , nullptr};
-        // フルスクリーンのとき
-        EnumThreadWindows(GetCurrentThreadId(), [](HWND hWnd, LPARAM lParam) -> BOOL {
-            auto args = (Args*)lParam;
-            WCHAR className[100];
-            if (GetClassNameW(hWnd, className, _countof(className)))
-            {
-                if (!wcscmp(className, args->fullscreenClass.c_str()))
-                {
-                    args->containerWnd = hWnd;
-                    return false;
-                }
-            }
-            return true;
-        }, (LPARAM)&args);
-        this->hContainerWnd = FindWindowExW(FindWindowExW(FindWindowExW(args.containerWnd, nullptr, splitterClass.c_str(), nullptr), nullptr, viewClass.c_str(), nullptr), nullptr, videoContainerClass.c_str(), nullptr);
+        auto fullscreenWnd = this->GetFullscreenWindow();
+        this->hContainerWnd = FindWindowExW(FindWindowExW(FindWindowExW(fullscreenWnd, nullptr, splitterClass.c_str(), nullptr), nullptr, viewClass.c_str(), nullptr), nullptr, videoContainerClass.c_str(), nullptr);
     }
     // まず動画ウィンドウをクラス名で検索してみる
     // 0.10
@@ -1141,7 +1154,7 @@ bool CDataBroadcastingWV2::OnCommand(int ID)
     {
         if (this->m_pApp->GetFullscreen())
         {
-            return false;
+            return this->OnPluginSettings(this->GetFullscreenWindow());
         }
         return this->OnPluginSettings(this->m_pApp->GetAppWindow());
     }
