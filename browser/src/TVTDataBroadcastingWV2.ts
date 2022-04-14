@@ -105,10 +105,15 @@ bmlBrowser.addEventListener("invisible", (evt) => {
 bmlBrowser.addEventListener("load", (evt) => {
     console.log("load", evt.detail);
     const width = evt.detail.resolution.width + "px";
-    const height = evt.detail.resolution.height + "px";
-    if (browserElement.style.width !== width || browserElement.style.height !== height) {
+    const aspectNum = evt.detail.displayAspectRatio.numerator;
+    const aspectDen = evt.detail.displayAspectRatio.denominator;
+    const scaleY = (evt.detail.resolution.width / evt.detail.resolution.height) / (aspectNum / aspectDen);
+    const transform = `scaleY(${scaleY})`;
+    const height = (evt.detail.resolution.height * scaleY) + "px";
+    if (browserElement.style.width !== width || browserElement.style.height !== height || contentElement.style.transform !== transform) {
         browserElement.style.width = width;
         browserElement.style.height = height;
+        contentElement.style.transform = transform;
         ccContainer.style.width = width;
         ccContainer.style.height = height;
         onResized();
