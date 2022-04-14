@@ -833,16 +833,16 @@ void CDataBroadcastingWV2::InitWebView2()
                     auto type = a["type"].get<std::string>();
                     if (type == "videoChanged")
                     {
-                        auto left = a["left"].get<int>();
-                        auto right = a["right"].get<int>();
-                        auto bottom = a["bottom"].get<int>();
-                        auto top = a["top"].get<int>();
+                        auto left = a["left"].get<double>();
+                        auto right = a["right"].get<double>();
+                        auto top = a["top"].get<double>();
+                        auto bottom = a["bottom"].get<double>();
                         auto invisible = a["invisible"].get<bool>();
                         RECT r;
-                        r.left = left;
-                        r.right = right;
-                        r.bottom = bottom;
-                        r.top = top;
+                        r.left = (int)std::floor(left);
+                        r.right = (int)std::ceil(right);
+                        r.top = (int)std::floor(top);
+                        r.bottom = (int)std::ceil(bottom);
 
                         this->invisible = invisible;
                         this->videoRect = r;
