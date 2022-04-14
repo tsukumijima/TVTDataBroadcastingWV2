@@ -55,6 +55,13 @@ const player = new CaptionPlayer(document.createElement("video"), ccContainer);
 // リモコン
 const remoteControl = new StatusBarIndicator(browserElement.querySelector(".remote-control-receiving-status")!);
 
+const ccStatus = document.getElementById("cc-status")!;
+
+const ccStatusAnimation = ccStatus.animate([{ visibility: "hidden", offset: 1 }], {
+    duration: 2000,
+    fill: "forwards",
+});
+
 const epg: EPG = {
     tune(originalNetworkId, transportStreamId, serviceId) {
         console.error("tune", originalNetworkId, transportStreamId, serviceId);
@@ -179,6 +186,7 @@ type ToWebViewMessage = {
 } | {
     type: "caption",
     enable: boolean,
+    showIndicator: boolean,
 };
 
 (window as any).chrome.webview.addEventListener("message", (ev: any) => {
@@ -196,8 +204,20 @@ type ToWebViewMessage = {
         bmlBrowser.content.processKeyUp(data.keyCode);
     } else if (data.type === "caption") {
         if (data.enable) {
+            if (data.showIndicator) {
+                ccStatus.style.display = "";
+                ccStatus.textContent = "字幕オン";
+                ccStatusAnimation.cancel();
+                ccStatusAnimation.play();
+            }
             player.showCC();
         } else {
+            if (data.showIndicator) {
+                ccStatus.style.display = "";
+                ccStatus.textContent = "字幕オフ";
+                ccStatusAnimation.cancel();
+                ccStatusAnimation.play();
+            }
             player.hideCC();
         }
     }

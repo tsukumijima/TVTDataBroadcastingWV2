@@ -15,7 +15,24 @@
             right: 20px;
             bottom: 20px;
             font-family: "丸ゴシック";
-            background-color: rgba(32, 32, 32, 0.5);
+            background-color: rgba(0, 0, 0, 0.5);
+            vertical-align: middle;
+            line-height: 1.5em;
+            text-align: center;
+            color: white;
+        }
+
+        #cc-status {
+            position: absolute;
+            width: 140px;
+            height: 1.5em;
+            left: 0px;
+            right: 0px;
+            bottom: 20px;
+            margin-left: auto;
+            margin-right: auto;
+            font-family: "丸ゴシック";
+            background-color: rgba(0, 0, 0, 0.5);
             vertical-align: middle;
             line-height: 1.5em;
             text-align: center;
@@ -52,6 +69,7 @@
             <div class="arib-video-cc-container"
                 style="width: 960px; height: 540px; display: none; position: absolute; left: 0px; top: 0px;">
             </div>
+            <div id="cc-status" style="display: none;"></div>
             <div class="remote-control-receiving-status" style="display: none;">
                 データ取得中...
             </div>

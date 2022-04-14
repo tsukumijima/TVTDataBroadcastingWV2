@@ -145,7 +145,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     void InitWebView2();
     bool caption = false;
     void SetCaptionState(bool enable);
-    void UpdateCaptionState();
+    void UpdateCaptionState(bool showIndicator);
     std::wstring GetIniItem(const wchar_t* key, const wchar_t* def);
     INT GetIniItem(const wchar_t* key, INT def);
     bool SetIniItem(const wchar_t* key, const wchar_t* data);
@@ -880,7 +880,7 @@ void CDataBroadcastingWV2::InitWebView2()
 
             this->webView->add_NavigationCompleted(Callback<ICoreWebView2NavigationCompletedEventHandler>(
                 [this](ICoreWebView2* sender, ICoreWebView2NavigationCompletedEventArgs* args) -> HRESULT {
-                this->UpdateCaptionState();
+                this->UpdateCaptionState(false);
                 this->webViewLoaded = true;
                 return S_OK;
             }).Get(), &token);
@@ -1093,16 +1093,13 @@ bool CDataBroadcastingWV2::OnFullscreenChange(bool fFullscreen)
     return true;
 }
 
-void CDataBroadcastingWV2::UpdateCaptionState()
+void CDataBroadcastingWV2::UpdateCaptionState(bool showIndicator)
 {
-    if (this->caption)
-    {
-        this->webView->PostWebMessageAsJson(LR"({"type":"caption","enable":true})");
-    }
-    else
-    {
-        this->webView->PostWebMessageAsJson(LR"({"type":"caption","enable":false})");
-    }
+    nlohmann::json msg{ { "type", "caption" }, { "enable", this->caption }, { "showIndicator", showIndicator } };
+    std::stringstream ss;
+    ss << msg;
+    auto wjson = utf8StrToWString(ss.str().c_str());
+    this->webView->PostWebMessageAsJson(wjson.c_str());
 }
 
 void CDataBroadcastingWV2::SetCaptionState(bool enable)
@@ -1116,7 +1113,7 @@ void CDataBroadcastingWV2::SetCaptionState(bool enable)
     {
         SendDlgItemMessageW(this->hPanelWnd, IDC_TOGGLE_CAPTION, BM_SETCHECK, this->caption ? BST_CHECKED : BST_UNCHECKED, 0);
     }
-    this->UpdateCaptionState();
+    this->UpdateCaptionState(true);
 }
 
 bool CDataBroadcastingWV2::OnCommand(int ID)
