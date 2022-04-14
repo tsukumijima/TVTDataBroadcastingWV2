@@ -116,6 +116,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     HBRUSH hbrPanelBack = nullptr;
     HFONT hPanelFont = nullptr;
     wil::com_ptr<IBasicVideo> basicVideo;
+    wil::com_ptr<IBaseFilter> vmr7Renderer;
     wil::com_ptr<IBaseFilter> vmr9Renderer;
     bool invisible = false;
     RECT videoRect = {};
@@ -544,8 +545,22 @@ void CDataBroadcastingWV2::OnFilterGraphInitialized(TVTest::FilterGraphInfo* pIn
             isRenderless = true;
         }
     }
+    // VMR7
+    else if (SUCCEEDED(pInfo->pGraphBuilder->FindFilterByName(L"VMR7", this->vmr7Renderer.put())) || SUCCEEDED(pInfo->pGraphBuilder->FindFilterByName(L"VMR", this->vmr7Renderer.put())))
+    {
+        auto filterConfig = this->vmr7Renderer.try_query<IVMRFilterConfig>();
+        VMRMode mode;
+        if (filterConfig && (FAILED(filterConfig->GetRenderingMode((DWORD*)&mode)) || mode != VMRMode_Windowless))
+        {
+            // VMR7 (Renderless)
+            // TVTest Video Container側の大きさを変えればいいけど字幕の位置も変わってしまう
+            this->vmr7Renderer = nullptr;
+            this->m_pApp->AddLog(L"VMR7 (Renderless)は非推奨", TVTest::LOG_TYPE_WARNING);
+            isRenderless = true;
+        }
+    }
     // システムデフォルト
-    if (SUCCEEDED(pInfo->pGraphBuilder->QueryInterface(this->basicVideo.put())))
+    else if (SUCCEEDED(pInfo->pGraphBuilder->QueryInterface(this->basicVideo.put())))
     {
         long l, t, w, h;
         if (FAILED(this->basicVideo->GetDestinationPosition(&l, &t, &w, &h)))
@@ -588,11 +603,19 @@ void CDataBroadcastingWV2::OnFilterGraphInitialized(TVTest::FilterGraphInfo* pIn
         }, (LPARAM)&args);
         this->hContainerWnd = FindWindowExW(FindWindowExW(FindWindowExW(args.containerWnd, nullptr, splitterClass.c_str(), nullptr), nullptr, viewClass.c_str(), nullptr), nullptr, videoContainerClass.c_str(), nullptr);
     }
+    // まず動画ウィンドウをクラス名で検索してみる
+    // 0.10
     this->hVideoWnd = FindWindowExW(this->hContainerWnd, nullptr, L"LibISDB EVR Video Window", nullptr);
+    if (this->hVideoWnd == nullptr)
+    {
+        // 0.9
+        this->hVideoWnd = FindWindowExW(this->hContainerWnd, nullptr, L"Bon DTV EVR Video Window", nullptr);
+    }
     if (this->hVideoWnd == nullptr)
     {
         this->hVideoWnd = FindWindowExW(this->hContainerWnd, nullptr, L"madVR", nullptr);
     }
+    // 見つからなければNotification BarでもなくPseudo OSDでもないウィンドウを動画ウィンドウとする
     if (this->hVideoWnd == nullptr)
     {
         auto notifBarClass = appName + L" Notification Bar";
@@ -649,6 +672,7 @@ void CDataBroadcastingWV2::OnFilterGraphInitialized(TVTest::FilterGraphInfo* pIn
 void CDataBroadcastingWV2::OnFilterGraphFinalize(TVTest::FilterGraphInfo* pInfo)
 {
     this->basicVideo = nullptr;
+    this->vmr7Renderer = nullptr;
     this->vmr9Renderer = nullptr;
     this->hVideoWnd = nullptr;
 }
@@ -896,6 +920,11 @@ void CDataBroadcastingWV2::ResizeVideoWindow()
             {
                 auto vmr9WindowlessControl = this->vmr9Renderer.query<IVMRWindowlessControl9>();
                 vmr9WindowlessControl->SetVideoPosition(nullptr, &this->videoRect);
+            }
+            else if (this->vmr7Renderer)
+            {
+                auto vmr7WindowlessControl = this->vmr7Renderer.query<IVMRWindowlessControl>();
+                vmr7WindowlessControl->SetVideoPosition(nullptr, &this->videoRect);
             }
             else if (this->basicVideo)
             {
