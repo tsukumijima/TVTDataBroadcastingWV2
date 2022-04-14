@@ -1241,6 +1241,9 @@ bool CDataBroadcastingWV2::OnCommand(int ID)
     case IDC_KEY_RELOAD:
         this->webView->Reload();
         break;
+    case IDC_TOGGLE_CAPTION:
+        this->SetCaptionState(!this->caption);
+        break;
     case IDC_ENABLE_CAPTION:
         this->SetCaptionState(true);
         break;
