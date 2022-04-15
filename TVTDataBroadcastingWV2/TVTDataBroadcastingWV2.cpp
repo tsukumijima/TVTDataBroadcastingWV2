@@ -5,6 +5,8 @@
 #include "resource.h"
 #include <queue>
 #include <optional>
+#include <wil/stl.h>
+#include <wil/win32_helpers.h>
 
 using namespace Microsoft::WRL;
 
@@ -292,32 +294,14 @@ bool CDataBroadcastingWV2::SetIniItem(const wchar_t* key, const wchar_t* data)
 bool CDataBroadcastingWV2::Initialize()
 {
     this->hbrPanelBack = CreateSolidBrush(this->m_pApp->GetColor(L"PanelBack"));
-    DWORD size = 100;
-    while (true)
-    {
-        std::wstring filename(size, 0);
-        auto result = GetModuleFileNameW(g_hinstDLL, &filename[0], size);
-        if (result == 0)
-        {
-            break;
-        }
-        if (result == size)
-        {
-            size = size * 2;
-            filename.reserve(size);
-            continue;
-        }
-        filename.resize(result);
-        std::filesystem::path path(filename);
-        path.replace_extension();
-        baseDirectory = path;
-        resourceDirectory = path / L"resources";
-        webView2DataDirectory = path / L"WebView2Data";
-        webView2Directory = path / L"WebView2";
-        path.replace_extension(L".ini");
-        iniFile = path;
-        break;
-    }
+    auto filename = wil::GetModuleFileNameW<std::wstring>(g_hinstDLL);
+    std::filesystem::path path(filename);
+    path.replace_extension();
+    baseDirectory = path;
+    resourceDirectory = path / L"resources";
+    webView2DataDirectory = path / L"WebView2Data";
+    webView2Directory = path / L"WebView2";
+    path.replace_extension(L".ini");
     m_pApp->SetEventCallback(EventCallback, this);
     m_pApp->RegisterCommand(IDC_KEY_D, L"DataButton", L"dボタン");
     m_pApp->RegisterCommand(IDC_KEY_D_OR_ENABLE_PLUGIN, L"DataButtonOrEnablePlugin", L"プラグイン有効/dボタン");
