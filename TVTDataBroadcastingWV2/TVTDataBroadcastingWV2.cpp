@@ -7,6 +7,7 @@
 #include <optional>
 #include <wil/stl.h>
 #include <wil/win32_helpers.h>
+#include "NVRAMSettingsDialog.h"
 
 using namespace Microsoft::WRL;
 
@@ -1384,6 +1385,27 @@ INT_PTR CALLBACK CDataBroadcastingWV2::SettingsDlgProc(HWND hDlg, UINT uMsg, WPA
                 }
             }
             EndDialog(hDlg, LOWORD(wParam));
+        }
+        else if (LOWORD(wParam) == IDC_BUTTON_NVRAM_SETTING)
+        {
+            if (!pThis->webView)
+            {
+                MessageBoxW(hDlg, L"プラグインが有効の間のみ郵便番号・保存領域の設定を行えます。", L"TVTDataBroadcastingWV2の設定", MB_ICONERROR | MB_OK);
+            }
+            else
+            {
+                TVTest::ShowDialogInfo Info;
+
+                Info.Flags = 0;
+                Info.hinst = g_hinstDLL;
+                Info.pszTemplate = MAKEINTRESOURCE(IDD_SETTING_NVRAM);
+                Info.pMessageFunc = NVRAMSettingsDialog::DlgProc;
+                std::unique_ptr< NVRAMSettingsDialog> dialog(new NVRAMSettingsDialog(pThis->webView));
+                Info.pClientData = dialog.get();
+                Info.hwndOwner = hDlg;
+
+                pThis->m_pApp->ShowDialog(&Info);
+            }
         }
         return 1;
     }

@@ -147,6 +147,11 @@ type FromWebViewMessage = {
     originalNetworkId: number,
     transportStreamId: number,
     serviceId: number,
+} | {
+    type: "nvramRead",
+    filename: string,
+    structure: string,
+    data: any[] | null,
 };
 
 bmlBrowser.addEventListener("videochanged", (evt) => {
@@ -165,9 +170,7 @@ let pcr: number | undefined;
 
 function onMessage(msg: ResponseMessage) {
     if (msg.type === "pes") {
-        if (msg.pts != null) {
-            player.push(msg.streamId, Uint8Array.from(msg.data), msg.pts);
-        }
+        player.push(msg.streamId, Uint8Array.from(msg.data), msg.pts);
     } else if (msg.type === "pcr") {
         pcr = (msg.pcrBase + msg.pcrExtension / 300) / 90;
     }
@@ -187,10 +190,18 @@ type ToWebViewMessage = {
     type: "caption",
     enable: boolean,
     showIndicator: boolean,
+} | {
+    type: "nvramRead",
+    filename: string,
+    structure: string,
+} | {
+    type: "nvramWrite",
+    filename: string,
+    structure: string,
+    data: any[],
 };
 
-(window as any).chrome.webview.addEventListener("message", (ev: any) => {
-    const data = ev.data as ToWebViewMessage;
+function onWebViewMessage(data: ToWebViewMessage, reply: (data: FromWebViewMessage) => void) {
     if (data.type === "stream") {
         const ts = data.data;
         const prevPCR = pcr;
@@ -220,8 +231,25 @@ type ToWebViewMessage = {
             }
             player.hideCC();
         }
+    } else if (data.type === "nvramRead") {
+        reply({
+            type: "nvramRead",
+            filename: data.filename,
+            structure: data.structure,
+            data: bmlBrowser.nvram.readPersistentArray(data.filename, data.structure),
+        });
+    } else if (data.type === "nvramWrite") {
+        bmlBrowser.nvram.writePersistentArray(data.filename, data.structure, data.data);
     }
-});
+}
+
+(window as any).chrome.webview.addEventListener("message", (ev: any) => onWebViewMessage(ev.data as ToWebViewMessage, (window as any).chrome.webview.postMessage));
+
+(window as any).sendMessage = (data: ToWebViewMessage): FromWebViewMessage | null => {
+    let result: FromWebViewMessage | null = null;
+    onWebViewMessage(data, (data) => result = data);
+    return result;
+};
 
 function onResized() {
     const windowWidth = document.documentElement.clientWidth;

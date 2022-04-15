@@ -4,6 +4,7 @@
 #define IDD_SETTING                     102
 #define IDB_PLUGIN                      103
 #define IDD_REMOTE_CONTROL_PANEL        104
+#define IDD_SETTING_NVRAM               105
 #define IDC_KEY_D                       1000
 #define IDC_KEY_LEFT                    1001
 #define IDC_KEY_RIGHT                   1002
@@ -39,6 +40,9 @@
 #define IDC_TASKMANAGER                 1037
 #define IDC_CHECK_AUTOENABLE            1038
 #define IDC_KEY_SETTINGS                1039
+#define IDC_EDIT_ZIP                    1040
+#define IDC_BUTTON_NVRAM_SETTING        1041
+#define IDC_STATIC                      -1
 
 // Next default values for new objects
 // 
