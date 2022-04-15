@@ -1,4 +1,4 @@
-#include "pch.h"
+﻿#include "pch.h"
 #include "NVRAMSettingsDialog.h"
 #include "resource.h"
 std::string wstrToUTF8String(const wchar_t* ws);
