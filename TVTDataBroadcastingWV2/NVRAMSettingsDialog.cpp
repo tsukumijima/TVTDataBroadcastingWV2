@@ -49,7 +49,7 @@ INT_PTR CALLBACK NVRAMSettingsDialog::DlgProc(HWND hDlg, UINT uMsg, WPARAM wPara
     {
         if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
         {
-            if (LOWORD(wParam) == IDOK)
+            if (LOWORD(wParam) == IDOK && IsWindowEnabled(GetDlgItem(hDlg, IDC_EDIT_ZIP)))
             {
                 WCHAR zip[100]{};
                 GetDlgItemTextW(hDlg, IDC_EDIT_ZIP, zip, 100);
