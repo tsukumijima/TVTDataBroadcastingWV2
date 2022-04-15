@@ -302,6 +302,7 @@ bool CDataBroadcastingWV2::Initialize()
     webView2DataDirectory = path / L"WebView2Data";
     webView2Directory = path / L"WebView2";
     path.replace_extension(L".ini");
+    this->iniFile = path;
     m_pApp->SetEventCallback(EventCallback, this);
     m_pApp->RegisterCommand(IDC_KEY_D, L"DataButton", L"dボタン");
     m_pApp->RegisterCommand(IDC_KEY_D_OR_ENABLE_PLUGIN, L"DataButtonOrEnablePlugin", L"プラグイン有効/dボタン");
