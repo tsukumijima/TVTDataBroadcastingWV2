@@ -1,4 +1,4 @@
-#include "pch.h"
+﻿#include "pch.h"
 
 #define TVTEST_PLUGIN_CLASS_IMPLEMENT
 #include "thirdparty/TVTestPlugin.h"
@@ -1034,6 +1034,8 @@ void CDataBroadcastingWV2::Tune()
         {
             std::wstring baseUrl(L"https://TVTDataBroadcastingWV2.invalid/TVTDataBroadcastingWV2.html?serviceId=");
             baseUrl += std::to_wstring(this->currentService.ServiceID);
+            baseUrl += L"&networkId=";
+            baseUrl += std::to_wstring(this->currentChannel.NetworkID);
             if (_wcsicmp(source.get(), baseUrl.c_str()))
             {
                 this->RestoreVideoWindow();
