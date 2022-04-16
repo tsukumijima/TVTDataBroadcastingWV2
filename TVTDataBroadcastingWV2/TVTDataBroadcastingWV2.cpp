@@ -114,6 +114,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     HWND hPanelWnd = nullptr;
     HWND hVideoWnd = nullptr;
     HWND hWebViewWnd = nullptr;
+    HWND hViewWnd = nullptr;
     HWND hContainerWnd = nullptr;
     HWND hMessageWnd = nullptr;
     HBRUSH hbrPanelBack = nullptr;
@@ -394,6 +395,24 @@ LRESULT CALLBACK CDataBroadcastingWV2::MessageWndProc(HWND hWnd, UINT uMsg, WPAR
         {
             if (pThis->webViewController)
             {
+                // FIXME: Fullscreen
+                // Containerウィンドウが非表示になった場合Viewウィンドウを親にする
+                if (!IsWindowVisible(pThis->hWebViewWnd))
+                {
+                    pThis->webViewController->put_ParentWindow(pThis->hViewWnd);
+                }
+                // Containerウィンドウが表示されていてViewウィンドウが親ならばContainerウィンドウを親にする
+                else if (IsWindowVisible(pThis->hContainerWnd))
+                {
+                    HWND parent;
+                    if (SUCCEEDED(pThis->webViewController->get_ParentWindow(&parent)))
+                    {
+                        if (parent != pThis->hContainerWnd)
+                        {
+                            pThis->webViewController->put_ParentWindow(pThis->hContainerWnd);
+                        }
+                    }
+                }
                 RECT rect;
                 if (GetClientRect(pThis->hContainerWnd, &rect))
                 {
@@ -596,11 +615,13 @@ void CDataBroadcastingWV2::OnFilterGraphInitialized(TVTest::FilterGraphInfo* pIn
     auto splitterClass = appName + L" Splitter";
     auto viewClass = appName + L" View";
     auto videoContainerClass = appName + L" Video Container";
-    this->hContainerWnd = FindWindowExW(FindWindowExW(FindWindowExW(this->m_pApp->GetAppWindow(), nullptr, splitterClass.c_str(), nullptr), nullptr, viewClass.c_str(), nullptr), nullptr, videoContainerClass.c_str(), nullptr);
+    this->hViewWnd = FindWindowExW(FindWindowExW(this->m_pApp->GetAppWindow(), nullptr, splitterClass.c_str(), nullptr), nullptr, viewClass.c_str(), nullptr);
+    this->hContainerWnd = FindWindowExW(this->hViewWnd, nullptr, videoContainerClass.c_str(), nullptr);
     if (!this->hContainerWnd)
     {
         auto fullscreenWnd = this->GetFullscreenWindow();
-        this->hContainerWnd = FindWindowExW(FindWindowExW(FindWindowExW(fullscreenWnd, nullptr, splitterClass.c_str(), nullptr), nullptr, viewClass.c_str(), nullptr), nullptr, videoContainerClass.c_str(), nullptr);
+        this->hViewWnd = FindWindowExW(FindWindowExW(fullscreenWnd, nullptr, splitterClass.c_str(), nullptr), nullptr, viewClass.c_str(), nullptr);
+        this->hContainerWnd = FindWindowExW(this->hViewWnd, nullptr, videoContainerClass.c_str(), nullptr);
     }
     // まず動画ウィンドウをクラス名で検索してみる
     // 0.10
