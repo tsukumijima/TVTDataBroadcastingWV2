@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 
 #define TVTEST_PLUGIN_CLASS_IMPLEMENT
 #include "thirdparty/TVTestPlugin.h"
@@ -279,7 +279,7 @@ std::wstring CDataBroadcastingWV2::GetIniItem(const wchar_t* key, const wchar_t*
             return item;
         }
         size *= 2;
-        item.reserve(size);
+        item.resize(size);
     }
 }
 INT CDataBroadcastingWV2::GetIniItem(const wchar_t* key, INT def)
