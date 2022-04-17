@@ -42,6 +42,7 @@
 #define IDC_KEY_SETTINGS                1039
 #define IDC_EDIT_ZIP                    1040
 #define IDC_BUTTON_NVRAM_SETTING        1041
+#define IDC_COMBO_REGION                1042
 #define IDC_STATIC                      -1
 
 // Next default values for new objects

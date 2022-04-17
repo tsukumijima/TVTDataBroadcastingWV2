@@ -239,7 +239,7 @@ function onWebViewMessage(data: ToWebViewMessage, reply: (data: FromWebViewMessa
             data: bmlBrowser.nvram.readPersistentArray(data.filename, data.structure),
         });
     } else if (data.type === "nvramWrite") {
-        bmlBrowser.nvram.writePersistentArray(data.filename, data.structure, data.data);
+        bmlBrowser.nvram.writePersistentArray(data.filename, data.structure, data.data, undefined, true);
     }
 }
 
