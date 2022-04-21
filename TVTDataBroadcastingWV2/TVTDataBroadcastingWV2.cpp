@@ -132,6 +132,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     bool deferWebView = false;
     const int MAX_VOLUME = 100;
     int currentVolume = MAX_VOLUME;
+    bool useTVTestVolume = false;
     virtual bool OnChannelChange();
     virtual bool OnServiceChange();
     virtual bool OnServiceUpdate();
@@ -1036,6 +1037,7 @@ bool CDataBroadcastingWV2::OnPluginEnable(bool fEnable)
         {
             this->OnCommand(IDC_SHOW_REMOTE_CONTROL);
         }
+        this->useTVTestVolume = this->GetIniItem(L"UseTVTestVolume", true);
         m_pApp->SetStreamCallback(0, StreamCallback, this);
         m_pApp->SetWindowMessageCallback(WindowMessageCallback, this);
         InitWebView2();
@@ -1131,7 +1133,7 @@ void CDataBroadcastingWV2::UpdateCaptionState(bool showIndicator)
 
 void CDataBroadcastingWV2::UpdateVolume()
 {
-    nlohmann::json msg{ { "type", "volume" }, { "value", this->currentVolume / (double)MAX_VOLUME } };
+    nlohmann::json msg{ { "type", "volume" }, { "value", this->useTVTestVolume ? this->currentVolume / (double)MAX_VOLUME : 1.0 } };
     std::stringstream ss;
     ss << msg;
     auto wjson = utf8StrToWString(ss.str().c_str());
