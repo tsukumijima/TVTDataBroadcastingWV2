@@ -208,6 +208,8 @@ type ToWebViewMessage = {
 } | {
     type: "volume",
     value: number,
+} | {
+    type: "nvramDelete",
 };
 
 function onWebViewMessage(data: ToWebViewMessage, reply: (data: FromWebViewMessage) => void) {
@@ -251,6 +253,17 @@ function onWebViewMessage(data: ToWebViewMessage, reply: (data: FromWebViewMessa
         bmlBrowser.nvram.writePersistentArray(data.filename, data.structure, data.data, undefined, true);
     } else if (data.type === "volume") {
         gainNode.gain.value = data.value;
+    } else if (data.type === "nvramDelete") {
+        const keys: string[] = [];
+        for (let i = 0; i < window.localStorage.length; i++) {
+            const key = window.localStorage.key(i);
+            if (key != null && key.startsWith("nvram_")) {
+                keys.push(key);
+            }
+        }
+        for (const key of keys) {
+            window.localStorage.removeItem(key);
+        }
     }
 }
 

@@ -246,6 +246,24 @@ INT_PTR CALLBACK NVRAMSettingsDialog::DlgProc(HWND hDlg, UINT uMsg, WPARAM wPara
             }
             EndDialog(hDlg, LOWORD(wParam));
         }
+        else if (LOWORD(wParam) == IDC_BUTTON_DELETE_NVRAM)
+        {
+            if (MessageBoxW(hDlg, L"保存領域をすべて削除しますか?", L"TVTDataBroadcastingWV2", MB_YESNO | MB_ICONQUESTION) == IDYES)
+            {
+                nlohmann::json msg{
+                    { "type", "nvramDelete" },
+                };
+                std::ostringstream ss;
+                ss << msg;
+                auto ws = utf8StrToWString(ss.str().c_str());
+                pThis->webView->PostWebMessageAsJson(ws.c_str());
+                EndDialog(hDlg, IDCANCEL);
+            }
+            else
+            {
+                return 1;
+            }
+        }
         return 1;
     }
     case WM_CLOSE:
