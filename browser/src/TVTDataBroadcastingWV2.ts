@@ -76,7 +76,8 @@ const epg: EPG = {
 };
 
 const audioContext = new AudioContext();
-const destinationNode = audioContext.destination;
+const gainNode = audioContext.createGain();
+gainNode.connect(audioContext.destination);
 
 const bmlBrowser = new BMLBrowser({
     containerElement: contentElement,
@@ -91,7 +92,7 @@ const bmlBrowser = new BMLBrowser({
     videoPlaneModeEnabled: true,
     audioNodeProvider: {
         getAudioDestinationNode() {
-            return destinationNode;
+            return gainNode;
         }
     }
 });
@@ -204,6 +205,9 @@ type ToWebViewMessage = {
     filename: string,
     structure: string,
     data: any[],
+} | {
+    type: "volume",
+    value: number,
 };
 
 function onWebViewMessage(data: ToWebViewMessage, reply: (data: FromWebViewMessage) => void) {
@@ -245,6 +249,8 @@ function onWebViewMessage(data: ToWebViewMessage, reply: (data: FromWebViewMessa
         });
     } else if (data.type === "nvramWrite") {
         bmlBrowser.nvram.writePersistentArray(data.filename, data.structure, data.data, undefined, true);
+    } else if (data.type === "volume") {
+        gainNode.gain.value = data.value;
     }
 }
 

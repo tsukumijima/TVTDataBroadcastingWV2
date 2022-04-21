@@ -130,6 +130,8 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     std::unordered_set<WORD> pesPIDList;
     Status status;
     bool deferWebView = false;
+    const int MAX_VOLUME = 100;
+    int currentVolume = MAX_VOLUME;
     virtual bool OnChannelChange();
     virtual bool OnServiceChange();
     virtual bool OnServiceUpdate();
@@ -142,6 +144,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     virtual bool OnPluginSettings(HWND hwndOwner);
     virtual bool OnColorChange();
     virtual bool OnPanelItemNotify(TVTest::PanelItemEventInfo* pInfo);
+    virtual bool OnVolumeChange(int Volume, bool fMute);
 
     HWND GetFullscreenWindow();
     void RestoreVideoWindow();
@@ -151,6 +154,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     bool caption = false;
     void SetCaptionState(bool enable);
     void UpdateCaptionState(bool showIndicator);
+    void UpdateVolume();
     std::wstring GetIniItem(const wchar_t* key, const wchar_t* def);
     INT GetIniItem(const wchar_t* key, INT def);
     bool SetIniItem(const wchar_t* key, const wchar_t* data);
@@ -901,6 +905,7 @@ void CDataBroadcastingWV2::InitWebView2()
             this->webView->add_NavigationCompleted(Callback<ICoreWebView2NavigationCompletedEventHandler>(
                 [this](ICoreWebView2* sender, ICoreWebView2NavigationCompletedEventArgs* args) -> HRESULT {
                 this->UpdateCaptionState(false);
+                this->UpdateVolume();
                 this->webViewLoaded = true;
                 return S_OK;
             }).Get(), &token);
@@ -1118,6 +1123,15 @@ bool CDataBroadcastingWV2::OnFullscreenChange(bool fFullscreen)
 void CDataBroadcastingWV2::UpdateCaptionState(bool showIndicator)
 {
     nlohmann::json msg{ { "type", "caption" }, { "enable", this->caption }, { "showIndicator", showIndicator } };
+    std::stringstream ss;
+    ss << msg;
+    auto wjson = utf8StrToWString(ss.str().c_str());
+    this->webView->PostWebMessageAsJson(wjson.c_str());
+}
+
+void CDataBroadcastingWV2::UpdateVolume()
+{
+    nlohmann::json msg{ { "type", "volume" }, { "value", this->currentVolume / (double)MAX_VOLUME } };
     std::stringstream ss;
     ss << msg;
     auto wjson = utf8StrToWString(ss.str().c_str());
@@ -1511,6 +1525,13 @@ bool CDataBroadcastingWV2::OnPanelItemNotify(TVTest::PanelItemEventInfo* pInfo)
         break;
     }
     }
+    return true;
+}
+
+bool CDataBroadcastingWV2::OnVolumeChange(int Volume, bool fMute)
+{
+    this->currentVolume = fMute ? 0 : Volume;
+    this->UpdateVolume();
     return true;
 }
 
