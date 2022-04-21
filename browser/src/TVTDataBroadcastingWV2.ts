@@ -76,6 +76,7 @@ const epg: EPG = {
 };
 
 const audioContext = new AudioContext();
+const destinationNode = audioContext.destination;
 
 const bmlBrowser = new BMLBrowser({
     containerElement: contentElement,
@@ -88,9 +89,9 @@ const bmlBrowser = new BMLBrowser({
     },
     epg,
     videoPlaneModeEnabled: true,
-    audioContextProvider: {
-        getAudioContext() {
-            return audioContext;
+    audioNodeProvider: {
+        getAudioDestinationNode() {
+            return destinationNode;
         }
     }
 });
@@ -177,7 +178,11 @@ function onMessage(msg: ResponseMessage) {
     bmlBrowser.emitMessage(msg);
 }
 
-const tsStream = decodeTS(onMessage, Number(new URL(location.href).searchParams.get("serviceId")) || undefined, true);
+const tsStream = decodeTS({
+    sendCallback: onMessage,
+    serviceId: Number(new URL(location.href).searchParams.get("serviceId")) || undefined,
+    parsePES: true
+});
 
 type ToWebViewMessage = {
     type: "stream",
