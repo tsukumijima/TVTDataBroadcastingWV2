@@ -1,4 +1,4 @@
-#include "pch.h"
+﻿#include "pch.h"
 
 #define TVTEST_PLUGIN_CLASS_IMPLEMENT
 #include "thirdparty/TVTestPlugin.h"
@@ -20,6 +20,13 @@ using namespace Microsoft::WRL;
 
 #define IDT_SHOW_EVR_WINDOW 1
 #define IDT_RESIZE 2
+
+struct UsedKey
+{
+    bool basic;
+    bool dataButton;
+    bool numericTuning;
+};
 
 struct Status
 {
@@ -133,6 +140,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     const int MAX_VOLUME = 100;
     int currentVolume = MAX_VOLUME;
     bool useTVTestVolume = false;
+    UsedKey usedKey;
     virtual bool OnChannelChange();
     virtual bool OnServiceChange();
     virtual bool OnServiceUpdate();
@@ -899,6 +907,18 @@ void CDataBroadcastingWV2::InitWebView2()
                             }
                         }
                     }
+                    else if (type == "usedKeyList")
+                    {
+                        auto&& usedKeyList = a["usedKeyList"];
+                        if (usedKeyList.is_object())
+                        {
+                            UsedKey usedKey{};
+                            usedKey.basic = usedKeyList["basic"].is_boolean();
+                            usedKey.dataButton = usedKeyList["data-button"].is_boolean();
+                            usedKey.numericTuning = usedKeyList["numeric-tuning"].is_boolean();
+                            this->usedKey = usedKey;
+                        }
+                    }
                 }
                 return S_OK;
             }).Get(), &token);
@@ -1158,6 +1178,47 @@ void CDataBroadcastingWV2::SetCaptionState(bool enable)
     this->UpdateCaptionState(true);
 }
 
+enum class UsedKeyType
+{
+    Basic,
+    DataButton,
+    NumericTuning,
+};
+
+struct CommandInfo
+{
+    int keyCode;
+    UsedKeyType usedKeyType;
+    LPCWSTR commandName;
+};
+
+static std::unordered_map<int, CommandInfo> commandList
+{
+    { IDC_KEY_UP, { 1, UsedKeyType::Basic } },
+    { IDC_KEY_DOWN, { 2, UsedKeyType::Basic } },
+    { IDC_KEY_LEFT, { 3, UsedKeyType::Basic } },
+    { IDC_KEY_RIGHT, { 4, UsedKeyType::Basic } },
+    { IDC_KEY_ENTER, { 18, UsedKeyType::Basic } },
+    { IDC_KEY_BACK, { 19, UsedKeyType::Basic } },
+    { IDC_KEY_BLUE, { 21, UsedKeyType::DataButton } },
+    { IDC_KEY_RED, { 22, UsedKeyType::DataButton } },
+    { IDC_KEY_GREEN, { 23, UsedKeyType::DataButton } },
+    { IDC_KEY_YELLOW, { 24, UsedKeyType::DataButton } },
+    { IDC_KEY_0, { 5, UsedKeyType::NumericTuning } },
+    { IDC_KEY_1, { 6, UsedKeyType::NumericTuning, L"Channel1" } },
+    { IDC_KEY_2, { 7, UsedKeyType::NumericTuning, L"Channel2" } },
+    { IDC_KEY_3, { 8, UsedKeyType::NumericTuning, L"Channel3" } },
+    { IDC_KEY_4, { 9, UsedKeyType::NumericTuning, L"Channel4" } },
+    { IDC_KEY_5, { 10, UsedKeyType::NumericTuning, L"Channel5" } },
+    { IDC_KEY_6, { 11, UsedKeyType::NumericTuning, L"Channel6" } },
+    { IDC_KEY_7, { 12, UsedKeyType::NumericTuning, L"Channel7" } },
+    { IDC_KEY_8, { 13, UsedKeyType::NumericTuning, L"Channel8" } },
+    { IDC_KEY_9, { 14, UsedKeyType::NumericTuning, L"Channel9" } },
+    { IDC_KEY_10, { 15, UsedKeyType::NumericTuning, L"Channel10" } },
+    { IDC_KEY_11, { 16, UsedKeyType::NumericTuning, L"Channel11" } },
+    { IDC_KEY_12, { 17, UsedKeyType::NumericTuning, L"Channel12" } },
+};
+
 bool CDataBroadcastingWV2::OnCommand(int ID)
 {
     if (ID == IDC_SHOW_REMOTE_CONTROL)
@@ -1205,75 +1266,6 @@ bool CDataBroadcastingWV2::OnCommand(int ID)
     case IDC_KEY_D:
         this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":20})");
         break;
-    case IDC_KEY_UP:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":1})");
-        break;
-    case IDC_KEY_DOWN:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":2})");
-        break;
-    case IDC_KEY_LEFT:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":3})");
-        break;
-    case IDC_KEY_RIGHT:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":4})");
-        break;
-    case IDC_KEY_ENTER:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":18})");
-        break;
-    case IDC_KEY_BACK:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":19})");
-        break;
-    case IDC_KEY_0:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":5})");
-        break;
-    case IDC_KEY_1:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":6})");
-        break;
-    case IDC_KEY_2:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":7})");
-        break;
-    case IDC_KEY_3:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":8})");
-        break;
-    case IDC_KEY_4:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":9})");
-        break;
-    case IDC_KEY_5:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":10})");
-        break;
-    case IDC_KEY_6:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":11})");
-        break;
-    case IDC_KEY_7:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":12})");
-        break;
-    case IDC_KEY_8:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":13})");
-        break;
-    case IDC_KEY_9:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":14})");
-        break;
-    case IDC_KEY_10:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":15})");
-        break;
-    case IDC_KEY_11:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":16})");
-        break;
-    case IDC_KEY_12:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":17})");
-        break;
-    case IDC_KEY_BLUE:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":21})");
-        break;
-    case IDC_KEY_RED:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":22})");
-        break;
-    case IDC_KEY_GREEN:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":23})");
-        break;
-    case IDC_KEY_YELLOW:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":24})");
-        break;
     case IDC_KEY_DEVTOOL:
         this->webView->OpenDevToolsWindow();
         break;
@@ -1297,6 +1289,38 @@ bool CDataBroadcastingWV2::OnCommand(int ID)
             webView6->OpenTaskManagerWindow();
         }
         break;
+    }
+    default:
+    {
+        auto command = commandList.find(ID);
+        if (command != commandList.end())
+        {
+            bool post = false;
+            switch (command->second.usedKeyType)
+            {
+            case UsedKeyType::Basic:
+                post = this->usedKey.basic;
+                break;
+            case UsedKeyType::DataButton:
+                post = this->usedKey.dataButton;
+                break;
+            case UsedKeyType::NumericTuning:
+                post = this->usedKey.numericTuning;
+                break;
+            }
+            if (post)
+            {
+                nlohmann::json msg{ { "type", "key" }, { "keyCode", command->second.keyCode } };
+                std::stringstream ss;
+                ss << msg;
+                auto wjson = utf8StrToWString(ss.str().c_str());
+                this->webView->PostWebMessageAsJson(wjson.c_str());
+            }
+            else if (command->second.commandName)
+            {
+                this->m_pApp->DoCommand(command->second.commandName);
+            }
+        }
     }
     }
     return true;

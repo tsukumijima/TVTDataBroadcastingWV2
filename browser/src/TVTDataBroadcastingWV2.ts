@@ -154,6 +154,9 @@ type FromWebViewMessage = {
     filename: string,
     structure: string,
     data: any[] | null,
+} | {
+    type: "usedKeyList",
+    usedKeyList: { [key: string]: boolean },
 };
 
 bmlBrowser.addEventListener("videochanged", (evt) => {
@@ -165,6 +168,13 @@ bmlBrowser.addEventListener("videochanged", (evt) => {
         right: right * window.devicePixelRatio,
         bottom: bottom * window.devicePixelRatio,
         invisible: bmlBrowser.content.invisible ?? true,
+    } as FromWebViewMessage);
+});
+
+bmlBrowser.addEventListener("usedkeylistchanged", (evt) => {
+    const { usedKeyList } = evt.detail;(window as any).chrome.webview.postMessage({
+        type: "usedKeyList",
+        usedKeyList: Object.fromEntries([...usedKeyList.values()].map(x => [x, true])),
     } as FromWebViewMessage);
 });
 
