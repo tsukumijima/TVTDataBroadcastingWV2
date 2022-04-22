@@ -139,7 +139,8 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     bool deferWebView = false;
     const int MAX_VOLUME = 100;
     int currentVolume = MAX_VOLUME;
-    bool useTVTestVolume = false;
+    bool useTVTestVolume = true;
+    bool useTVTestChannelCommand = true;
     UsedKey usedKey;
     virtual bool OnChannelChange();
     virtual bool OnServiceChange();
@@ -1058,6 +1059,7 @@ bool CDataBroadcastingWV2::OnPluginEnable(bool fEnable)
             this->OnCommand(IDC_SHOW_REMOTE_CONTROL);
         }
         this->useTVTestVolume = this->GetIniItem(L"UseTVTestVolume", true);
+        this->useTVTestChannelCommand = this->GetIniItem(L"UseTVTestChannelCommand", true);
         m_pApp->SetStreamCallback(0, StreamCallback, this);
         m_pApp->SetWindowMessageCallback(WindowMessageCallback, this);
         InitWebView2();
@@ -1318,7 +1320,10 @@ bool CDataBroadcastingWV2::OnCommand(int ID)
             }
             else if (command->second.commandName)
             {
-                this->m_pApp->DoCommand(command->second.commandName);
+                if (this->useTVTestChannelCommand)
+                {
+                    this->m_pApp->DoCommand(command->second.commandName);
+                }
             }
         }
     }
@@ -1428,6 +1433,14 @@ INT_PTR CALLBACK CDataBroadcastingWV2::SettingsDlgProc(HWND hDlg, UINT uMsg, WPA
         {
             SendDlgItemMessageW(hDlg, IDC_CHECK_AUTOENABLE, BM_SETCHECK, BST_CHECKED, 0);
         }
+        if (pThis->GetIniItem(L"UseTVTestVolume", 1))
+        {
+            SendDlgItemMessageW(hDlg, IDC_CHECK_USE_TVTEST_VOLUME, BM_SETCHECK, BST_CHECKED, 0);
+        }
+        if (pThis->GetIniItem(L"UseTVTestChannelCommand", 1))
+        {
+            SendDlgItemMessageW(hDlg, IDC_CHECK_USE_TVTEST_CHANNEL_COMMAND, BM_SETCHECK, BST_CHECKED, 0);
+        }
         return 1;
     }
     case WM_COMMAND:
@@ -1445,6 +1458,20 @@ INT_PTR CALLBACK CDataBroadcastingWV2::SettingsDlgProc(HWND hDlg, UINT uMsg, WPA
                 }
                 auto autoEnable = SendDlgItemMessageW(hDlg, IDC_CHECK_AUTOENABLE, BM_GETCHECK, 0, 0);
                 if (!pThis->SetIniItem(L"AutoEnable", autoEnable ? L"1" : L"0"))
+                {
+                    MessageBoxW(hDlg, L"設定を保存できませんでした", L"TVTDataBroadcastingWV2の設定", MB_ICONERROR | MB_OK);
+                    EndDialog(hDlg, IDCANCEL);
+                    return 1;
+                }
+                auto useTVTestVolume = SendDlgItemMessageW(hDlg, IDC_CHECK_USE_TVTEST_VOLUME, BM_GETCHECK, 0, 0);
+                if (!pThis->SetIniItem(L"UseTVTestVolume", useTVTestVolume ? L"1" : L"0"))
+                {
+                    MessageBoxW(hDlg, L"設定を保存できませんでした", L"TVTDataBroadcastingWV2の設定", MB_ICONERROR | MB_OK);
+                    EndDialog(hDlg, IDCANCEL);
+                    return 1;
+                }
+                auto useTVTestChannelCommand = SendDlgItemMessageW(hDlg, IDC_CHECK_USE_TVTEST_CHANNEL_COMMAND, BM_GETCHECK, 0, 0);
+                if (!pThis->SetIniItem(L"UseTVTestChannelCommand", useTVTestChannelCommand ? L"1" : L"0"))
                 {
                     MessageBoxW(hDlg, L"設定を保存できませんでした", L"TVTDataBroadcastingWV2の設定", MB_ICONERROR | MB_OK);
                     EndDialog(hDlg, IDCANCEL);
