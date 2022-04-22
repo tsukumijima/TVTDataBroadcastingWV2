@@ -1091,6 +1091,9 @@ void CDataBroadcastingWV2::Tune()
                 this->RestoreVideoWindow();
                 this->packetQueue.clear();
                 this->webView->Navigate(baseUrl.c_str());
+                this->usedKey.basic = true;
+                this->usedKey.dataButton = true;
+                this->usedKey.numericTuning = false;
             }
         }
     }
