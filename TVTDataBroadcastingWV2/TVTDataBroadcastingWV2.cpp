@@ -1,4 +1,4 @@
-﻿#include "pch.h"
+#include "pch.h"
 
 #define TVTEST_PLUGIN_CLASS_IMPLEMENT
 #include "thirdparty/TVTestPlugin.h"
@@ -1133,6 +1133,10 @@ void CDataBroadcastingWV2::UpdateCaptionState(bool showIndicator)
 
 void CDataBroadcastingWV2::UpdateVolume()
 {
+    if (!this->webView)
+    {
+        return;
+    }
     nlohmann::json msg{ { "type", "volume" }, { "value", this->useTVTestVolume ? this->currentVolume / (double)MAX_VOLUME : 1.0 } };
     std::stringstream ss;
     ss << msg;
