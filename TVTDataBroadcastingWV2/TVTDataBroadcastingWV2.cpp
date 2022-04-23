@@ -373,6 +373,8 @@ bool CDataBroadcastingWV2::Initialize()
     statusItemInfo.DefaultWidth = TVTest::StatusItemWidthByFontSize(10);
     statusItemInfo.MinHeight = 0;
     m_pApp->RegisterStatusItem(&statusItemInfo);
+    this->useTVTestVolume = this->GetIniItem(L"UseTVTestVolume", true);
+    this->useTVTestChannelCommand = this->GetIniItem(L"UseTVTestChannelCommand", true);
     if (this->GetIniItem(L"AutoEnable", 0))
     {
         m_pApp->EnablePlugin(true);
@@ -1058,8 +1060,6 @@ bool CDataBroadcastingWV2::OnPluginEnable(bool fEnable)
         {
             this->OnCommand(IDC_SHOW_REMOTE_CONTROL);
         }
-        this->useTVTestVolume = this->GetIniItem(L"UseTVTestVolume", true);
-        this->useTVTestChannelCommand = this->GetIniItem(L"UseTVTestChannelCommand", true);
         m_pApp->SetStreamCallback(0, StreamCallback, this);
         m_pApp->SetWindowMessageCallback(WindowMessageCallback, this);
         InitWebView2();
@@ -1261,6 +1261,17 @@ bool CDataBroadcastingWV2::OnCommand(int ID)
             {
                 this->m_pApp->EnablePlugin(true);
                 return true;
+            }
+        }
+        auto command = commandList.find(ID);
+        if (command != commandList.end())
+        {
+            if (command->second.commandName)
+            {
+                if (this->useTVTestChannelCommand)
+                {
+                    this->m_pApp->DoCommand(command->second.commandName);
+                }
             }
         }
         return false;
