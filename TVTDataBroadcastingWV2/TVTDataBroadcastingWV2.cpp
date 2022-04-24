@@ -1397,14 +1397,36 @@ void CDataBroadcastingWV2::EnablePanelButtons(bool enable)
     {
         return;
     }
+    struct Args
+    {
+        bool enable;
+        bool useTVTestChannelCommand;
+    };
+    Args args = { enable, this->useTVTestChannelCommand };
     EnumChildWindows(this->hPanelWnd, [](HWND hWnd, LPARAM lParam) -> BOOL {
+        auto args = (Args*)lParam;
         auto id = GetDlgCtrlID(hWnd);
         if (id != IDC_KEY_D_OR_ENABLE_PLUGIN && id != IDC_KEY_SETTINGS)
         {
-            EnableWindow(hWnd, (bool)lParam);
+            if (args->useTVTestChannelCommand)
+            {
+                auto command = commandList.find(id);
+                if (command == commandList.end() || !command->second.commandName)
+                {
+                    EnableWindow(hWnd, args->enable);
+                }
+                else
+                {
+                    EnableWindow(hWnd, true);
+                }
+            }
+            else
+            {
+                EnableWindow(hWnd, args->enable);
+            }
         }
         return true;
-    }, (LPARAM)enable);
+    }, (LPARAM)&args);
 }
 
 INT_PTR CALLBACK CDataBroadcastingWV2::PanelRemoteControlDlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam, void* pClientData)
@@ -1492,6 +1514,7 @@ INT_PTR CALLBACK CDataBroadcastingWV2::SettingsDlgProc(HWND hDlg, UINT uMsg, WPA
                     EndDialog(hDlg, IDCANCEL);
                     return 1;
                 }
+                pThis->EnablePanelButtons(pThis->m_pApp->IsPluginEnabled());
             }
             EndDialog(hDlg, LOWORD(wParam));
         }
