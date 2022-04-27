@@ -4,14 +4,17 @@ import { decodeTS } from "../web-bml/server/decode_ts";
 import { CaptionPlayer } from "../web-bml/client/player/caption_player";
 
 export class StatusBarIndicator implements Indicator {
-    receivingStatusElement: HTMLElement;
-    constructor(receivingStatusElement: HTMLElement) {
+    private readonly receivingStatusElement: HTMLElement;
+    private readonly networkingStatusElement: HTMLElement;
+    constructor(receivingStatusElement: HTMLElement, networkingStatusElement: HTMLElement) {
         this.receivingStatusElement = receivingStatusElement;
+        this.networkingStatusElement = networkingStatusElement;
     }
     url = "";
     receiving = false;
     eventName: string | null = "";
     loading = false;
+    networkingPost = false;
     private update() {
         (window as any).chrome.webview.postMessage({
             type: "status",
@@ -24,6 +27,11 @@ export class StatusBarIndicator implements Indicator {
         } else {
             this.receivingStatusElement.style.display = "none";
         }
+        if (this.networkingPost) {
+            this.networkingStatusElement.style.display = "";
+        } else {
+            this.networkingStatusElement.style.display = "none";
+        }
     }
     public setUrl(name: string, loading: boolean): void {
         this.url = name;
@@ -32,6 +40,13 @@ export class StatusBarIndicator implements Indicator {
     }
     public setReceivingStatus(receiving: boolean): void {
         this.receiving = receiving;
+        this.update();
+    }
+    public setNetworkingGetStatus(get: boolean): void {
+
+    }
+    public setNetworkingPostStatus(post: boolean): void {
+        this.networkingPost = post;
         this.update();
     }
     public setEventName(eventName: string | null): void {
@@ -53,7 +68,7 @@ const squareGothic: BMLBrowserFontFace = { source: "url('../dist/Kosugi-Regular.
 const ccContainer = browserElement.querySelector(".arib-video-cc-container") as HTMLElement;
 const player = new CaptionPlayer(document.createElement("video"), ccContainer);
 // リモコン
-const remoteControl = new StatusBarIndicator(browserElement.querySelector(".remote-control-receiving-status")!);
+const remoteControl = new StatusBarIndicator(browserElement.querySelector(".remote-control-receiving-status")!, browserElement.querySelector(".remote-control-networking-status")!);
 
 const ccStatus = document.getElementById("cc-status")!;
 
