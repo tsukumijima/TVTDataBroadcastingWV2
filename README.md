@@ -34,9 +34,20 @@ TVTest起動時には有効にならないようになっているため右ク�
 
 字幕ボタンを押すと[aribb24.js](https://github.com/monyone/aribb24.js)を使った字幕を表示することが出来ます。
 
+テレ東(BSや系列局含)では初回は50秒ほど待たないとデータ放送が表示されません。
+
 ## 設定
 
 キー割り当て、パネル、サイドバー、ステータスバーの設定はTVTestの設定で行えます。
+
+### 通信コンテンツ
+
+Plugins/TVTDataBroadcastingWV2.iniを以下のようにすると通信が有効になります。
+
+```ini
+[TVTDataBroadcastingWV2]
+EnableNetwork=1
+```
 
 ### プラグイン有効時にリモコンを表示しない
 
@@ -48,7 +59,7 @@ TVTest起動時には有効にならないようになっているため右ク�
 
 おおよそ実装されていますがinputmodeや一部のAPI、イベント、要素は未実装です。
 
-通信関係のAPIは現状未実装ですべての外部へのリクエストはブロックされます。(ICoreWebView2::add_WebResourceRequestedを呼んでいる部分を参照)
+通信機能は規定で無効であり、その場合すべての外部へのリクエストはブロックされます。(ICoreWebView2::add_WebResourceRequestedを呼んでいる部分を参照)
 
 ## ビルド方法
 
@@ -77,6 +88,7 @@ curl https://raw.githubusercontent.com/googlefonts/kosugi/75171a2738135ab888549e
 
 ```sh
 cd browser
+yarn install
 yarn workspace @chinachu/aribts build
 yarn run build
 ```

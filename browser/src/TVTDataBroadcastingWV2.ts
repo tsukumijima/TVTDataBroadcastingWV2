@@ -75,6 +75,44 @@ const epg: EPG = {
     }
 };
 
+let networkEnabled = false;
+
+const apiIP: IP = {
+    getConnectionType() {
+        return 403;
+    },
+    isIPConnected() {
+        return networkEnabled ? 1 : 0;
+    },
+    async transmitTextDataOverIP(uri, body) {
+        if (!networkEnabled) {
+            return { resultCode: NaN, statusCode: "", response: new Uint8Array() };
+        }
+        try {
+            const res = await window.fetch("https://tvtdatabroadcastingwv2-api.invalid/api/post/" + uri, {
+                method: "POST",
+                body,
+            });
+            return { resultCode: 1, statusCode: res.status.toString(), response: new Uint8Array(await res.arrayBuffer()) };
+        } catch {
+            return { resultCode: NaN, statusCode: "", response: new Uint8Array() };
+        }
+    },
+    async get(uri) {
+        if (!networkEnabled) {
+            return {};
+        }
+        try {
+            const res = await window.fetch("https://tvtdatabroadcastingwv2-api.invalid/api/get/" + uri, {
+                method: "GET",
+            });
+            return { statusCode: res.status, headers: res.headers, response: new Uint8Array(await res.arrayBuffer()) };
+        } catch {
+            return {};
+        }
+    },
+};
+
 const audioContext = new AudioContext();
 const gainNode = audioContext.createGain();
 gainNode.connect(audioContext.destination);
@@ -94,7 +132,8 @@ const bmlBrowser = new BMLBrowser({
         getAudioDestinationNode() {
             return gainNode;
         }
-    }
+    },
+    ip: apiIP,
 });
 
 // trueであればデータ放送の上に動画を表示させる非表示状態
@@ -172,7 +211,7 @@ bmlBrowser.addEventListener("videochanged", (evt) => {
 });
 
 bmlBrowser.addEventListener("usedkeylistchanged", (evt) => {
-    const { usedKeyList } = evt.detail;(window as any).chrome.webview.postMessage({
+    const { usedKeyList } = evt.detail; (window as any).chrome.webview.postMessage({
         type: "usedKeyList",
         usedKeyList: Object.fromEntries([...usedKeyList.values()].map(x => [x, true])),
     } as FromWebViewMessage);
@@ -220,6 +259,9 @@ type ToWebViewMessage = {
     value: number,
 } | {
     type: "nvramDelete",
+} | {
+    type: "enableNetwork",
+    enable: boolean,
 };
 
 function onWebViewMessage(data: ToWebViewMessage, reply: (data: FromWebViewMessage) => void) {
@@ -274,6 +316,8 @@ function onWebViewMessage(data: ToWebViewMessage, reply: (data: FromWebViewMessa
         for (const key of keys) {
             window.localStorage.removeItem(key);
         }
+    } else if (data.type === "enableNetwork") {
+        networkEnabled = data.enable;
     }
 }
 

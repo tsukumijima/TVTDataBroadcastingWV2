@@ -8,6 +8,7 @@
 #include <wil/stl.h>
 #include <wil/win32_helpers.h>
 #include "NVRAMSettingsDialog.h"
+#include "proxy.h"
 
 using namespace Microsoft::WRL;
 
@@ -17,6 +18,17 @@ using namespace Microsoft::WRL;
 // メッセージウィンドウ向けメッセージ
 #define WM_APP_PACKET (WM_APP + 0)
 #define WM_APP_RESIZE (WM_APP + 1)
+#define WM_APP_RESPONSE (WM_APP + 2)
+
+struct DeferralResponse
+{
+    wil::com_ptr<ICoreWebView2Deferral> deferral;
+    wil::com_ptr<ICoreWebView2WebResourceRequestedEventArgs> args;
+    DWORD statusCode;
+    std::wstring statusCodeText;
+    std::wstring headers;
+    std::vector<BYTE> content;
+};
 
 #define IDT_SHOW_EVR_WINDOW 1
 #define IDT_RESIZE 2
@@ -142,6 +154,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     bool useTVTestVolume = true;
     bool useTVTestChannelCommand = true;
     UsedKey usedKey;
+    std::unique_ptr<ProxySession> proxySession;
     virtual bool OnChannelChange();
     virtual bool OnServiceChange();
     virtual bool OnServiceUpdate();
@@ -170,6 +183,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     bool SetIniItem(const wchar_t* key, const wchar_t* data);
     void Disable(bool finalize);
     void EnablePanelButtons(bool enable);
+    HRESULT Proxy(ICoreWebView2WebResourceRequestedEventArgs* args, LPCWSTR proxyUrl);
 
     wil::com_ptr<ICoreWebView2Controller> webViewController;
     wil::com_ptr<ICoreWebView2> webView;
@@ -546,6 +560,64 @@ LRESULT CALLBACK CDataBroadcastingWV2::MessageWndProc(HWND hWnd, UINT uMsg, WPAR
         }
         break;
     }
+    case WM_APP_RESPONSE:
+    {
+        auto response = std::unique_ptr<DeferralResponse>((DeferralResponse*)lParam);
+        wil::com_ptr<ICoreWebView2Environment> env;
+        auto hr = pThis->webView.query<ICoreWebView2_2>()->get_Environment(env.put());
+        if (FAILED(hr))
+        {
+            response->deferral->Complete();
+            break;
+        }
+        wil::com_ptr<ICoreWebView2WebResourceResponse> webResponse;
+        wil::com_ptr<IStream> stm;
+        auto  hGlobal = GlobalAlloc(GMEM_MOVEABLE | GMEM_NODISCARD, response->content.size());
+        if (!hGlobal)
+        {
+            response->deferral->Complete();
+            break;
+        }
+        auto mem = GlobalLock(hGlobal);
+        memcpy(mem, response->content.data(), response->content.size());
+        GlobalUnlock(hGlobal);
+        if (FAILED(CreateStreamOnHGlobal(hGlobal, TRUE, stm.put())))
+        {
+            response->deferral->Complete();
+            break;
+        }
+        std::wistringstream iss(response->headers);
+        std::wostringstream replacedHeader;
+        std::wstring header;
+        while (std::getline(iss, header))
+        {
+            if (!_wcsnicmp(header.c_str(), L"Access-Control-Allow-Origin", wcslen(L"Access-Control-Allow-Origin")))
+            {
+            }
+            else if (header != L"\r")
+            {
+                replacedHeader << header;
+                replacedHeader << L"\n";
+            }
+        }
+        hr = env->CreateWebResourceResponse(stm.get(), response->statusCode, response->statusCodeText.c_str(), replacedHeader.str().c_str(), webResponse.put());
+        if (FAILED(hr))
+        {
+            response->deferral->Complete();
+            break;
+        }
+        wil::com_ptr<ICoreWebView2HttpResponseHeaders> responseHeaders;
+        hr = webResponse->get_Headers(responseHeaders.put());
+        if (FAILED(hr))
+        {
+            response->deferral->Complete();
+            break;
+        }
+        responseHeaders->AppendHeader(L"Access-Control-Allow-Origin", L"https://tvtdatabroadcastingwv2.invalid");
+        response->args->put_Response(webResponse.get());
+        response->deferral->Complete();
+        break;
+    }
     }
     return DefWindowProcW(hWnd, uMsg, wParam, lParam);
 }
@@ -811,6 +883,7 @@ void CDataBroadcastingWV2::InitWebView2()
             webView3->SetVirtualHostNameToFolderMapping(L"TVTDataBroadcastingWV2.invalid", resourceDirectory.c_str(), COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW);
 
             // 仮想ホスト以外へのリクエストは全てブロックする
+            // 通信が有効になっている場合は許可する
             webView->AddWebResourceRequestedFilter(L"*", COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL);
             this->webView->add_WebResourceRequested(Callback<ICoreWebView2WebResourceRequestedEventHandler>(
                 [this](ICoreWebView2* sender, ICoreWebView2WebResourceRequestedEventArgs* args) -> HRESULT {
@@ -826,7 +899,22 @@ void CDataBroadcastingWV2::InitWebView2()
                 {
                     return hr;
                 }
-                if (_wcsnicmp(L"https://TVTDataBroadcastingWV2.invalid/", uri.get(), wcslen(L"https://TVTDataBroadcastingWV2.invalid/")))
+                auto get = L"https://TVTDataBroadcastingWV2-api.invalid/api/get/";
+                auto post = L"https://TVTDataBroadcastingWV2-api.invalid/api/post/";
+                LPCWSTR proxyUrl = nullptr;
+                if (!_wcsnicmp(get, uri.get(), wcslen(get)))
+                {
+                    proxyUrl = uri.get() + wcslen(get);
+                }
+                else if (!_wcsnicmp(post, uri.get(), wcslen(post)))
+                {
+                    proxyUrl = uri.get() + wcslen(post);
+                }
+                if (this->proxySession && proxyUrl)
+                {
+                    return this->Proxy(args, proxyUrl);
+                }
+                else if (_wcsnicmp(L"https://TVTDataBroadcastingWV2.invalid/", uri.get(), wcslen(L"https://TVTDataBroadcastingWV2.invalid/")))
                 {
                     wil::com_ptr<ICoreWebView2Environment> env;
                     hr = this->webView.query<ICoreWebView2_2>()->get_Environment(env.put());
@@ -930,6 +1018,14 @@ void CDataBroadcastingWV2::InitWebView2()
                 [this](ICoreWebView2* sender, ICoreWebView2NavigationCompletedEventArgs* args) -> HRESULT {
                 this->UpdateCaptionState(false);
                 this->UpdateVolume();
+                if (this->proxySession)
+                {
+                    nlohmann::json msg{ { "type", "enableNetwork" }, { "enable", true } };
+                    std::stringstream ss;
+                    ss << msg;
+                    auto wjson = utf8StrToWString(ss.str().c_str());
+                    this->webView->PostWebMessageAsJson(wjson.c_str());
+                }
                 this->webViewLoaded = true;
                 return S_OK;
             }).Get(), &token);
@@ -953,6 +1049,108 @@ void CDataBroadcastingWV2::InitWebView2()
         }
         this->m_pApp->EnablePlugin(false);
     }
+}
+
+// cors無効コマンドライン引数を追加するなどでWebView2側に任せることも可能ではあるけど融通が利かないためWinHTTPを使う あとバージョン依存の問題があるらしい?
+HRESULT CDataBroadcastingWV2::Proxy(ICoreWebView2WebResourceRequestedEventArgs* args, LPCWSTR proxyUrl)
+{
+    wil::com_ptr<ICoreWebView2WebResourceRequest> request;
+    HRESULT hr = args->get_Request(request.put());
+    if (FAILED(hr))
+    {
+        return hr;
+    }
+    wil::unique_cotaskmem_string method;
+    hr = request->get_Method(method.put());
+    if (FAILED(hr))
+    {
+        return hr;
+    }
+    wil::com_ptr<IStream> content;
+    hr = request->get_Content(content.put());
+    std::vector<BYTE> contentBuffer;
+    ULONG contentSize;
+    if (SUCCEEDED(hr) && content)
+    {
+        // fetchから呼んだ場合CMemStreamなので同期的に取得する
+        STATSTG statstg = {};
+        hr = content->Stat(&statstg, STATFLAG_NONAME);
+        auto size = statstg.cbSize.QuadPart;
+        if (SUCCEEDED(hr) && size <= std::numeric_limits<ULONG>::max())
+        {
+            contentBuffer.resize(size);
+            content->Read(contentBuffer.data(), size, &contentSize);
+            contentBuffer.resize(contentSize);
+        }
+    }
+    wil::com_ptr<ICoreWebView2HttpRequestHeaders> headers;
+    hr = request->get_Headers(headers.put());
+    if (FAILED(hr))
+    {
+        return hr;
+    }
+    wil::com_ptr<ICoreWebView2HttpHeadersCollectionIterator> iterator;
+    hr = headers->GetIterator(iterator.put());
+    if (FAILED(hr))
+    {
+        return hr;
+    }
+    BOOL hasCurrent = false;
+    std::vector<std::pair<wil::unique_cotaskmem_string, wil::unique_cotaskmem_string>> headersCo;
+    std::vector<std::pair<LPCWSTR, LPCWSTR>> headersPtr
+    {
+        { L"Pragma", L"no-cache" },
+        { L"Accept-Language", L"ja" },
+    };
+    while (SUCCEEDED(iterator->get_HasCurrentHeader(&hasCurrent)) && hasCurrent)
+    {
+        wil::unique_cotaskmem_string name;
+        wil::unique_cotaskmem_string value;
+        if (SUCCEEDED(iterator->GetCurrentHeader(name.put(), value.put())))
+        {
+            if (!_wcsicmp(name.get(), L"if-modified-since") || !_wcsicmp(name.get(), L"cache-control"))
+            {
+                headersPtr.push_back({ name.get(), value.get() });
+                headersCo.push_back({ std::move(name), std::move(value) });
+            }
+            BOOL hasNext;
+            if (FAILED(iterator->MoveNext(&hasNext)))
+            {
+                break;
+            }
+        }
+    }
+    wil::com_ptr<ICoreWebView2Deferral> deferral;
+    args->GetDeferral(deferral.put());
+    if (!ProxyRequest::RequestAsync(*this->proxySession.get(), proxyUrl, method.get(), std::move(contentBuffer), headersPtr, [deferral]() -> void
+    {
+        // error
+        deferral->Complete();
+    }, [this, args = wil::com_ptr<ICoreWebView2WebResourceRequestedEventArgs>(args), deferral](DWORD statusCode, LPCWSTR statusCodeText, LPCWSTR headers, size_t contentLength, BYTE* content) -> void
+    {
+        if (this->hMessageWnd)
+        {
+            auto response = new DeferralResponse
+            {
+                deferral,
+                args,
+                statusCode,
+                std::wstring(statusCodeText),
+                std::wstring(headers),
+                std::vector<BYTE>(content, content + contentLength),
+            };
+            PostMessageW(this->hMessageWnd, WM_APP_RESPONSE, 0, (LPARAM)response);
+        }
+        else
+        {
+            deferral->Complete();
+        }
+        return;
+    }))
+    {
+        deferral->Complete();
+    }
+    return S_OK;
 }
 
 void CDataBroadcastingWV2::ResizeVideoWindow()
@@ -1026,6 +1224,8 @@ void CDataBroadcastingWV2::Disable(bool finalize)
         this->hMessageWnd = nullptr;
     }
 
+    this->proxySession = nullptr;
+
     if (finalize)
     {
         auto hWnd = this->hPanelWnd;
@@ -1065,6 +1265,10 @@ bool CDataBroadcastingWV2::OnPluginEnable(bool fEnable)
         InitWebView2();
         SetTimer(this->hMessageWnd, IDT_RESIZE, 1000, nullptr);
         this->EnablePanelButtons(true);
+        if (this->GetIniItem(L"EnableNetwork", 0))
+        {
+            this->proxySession = std::unique_ptr<ProxySession>(new ProxySession());
+        }
     }
     else
     {
