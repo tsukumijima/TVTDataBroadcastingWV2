@@ -91,6 +91,9 @@ const apiIP: IP = {
         try {
             const res = await window.fetch("https://tvtdatabroadcastingwv2-api.invalid/api/post/" + uri, {
                 method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
                 body,
             });
             return { resultCode: 1, statusCode: res.status.toString(), response: new Uint8Array(await res.arrayBuffer()) };

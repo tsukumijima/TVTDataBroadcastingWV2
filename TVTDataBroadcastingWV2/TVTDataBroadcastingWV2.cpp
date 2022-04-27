@@ -1108,7 +1108,7 @@ HRESULT CDataBroadcastingWV2::Proxy(ICoreWebView2WebResourceRequestedEventArgs* 
         wil::unique_cotaskmem_string value;
         if (SUCCEEDED(iterator->GetCurrentHeader(name.put(), value.put())))
         {
-            if (!_wcsicmp(name.get(), L"if-modified-since") || !_wcsicmp(name.get(), L"cache-control"))
+            if (!_wcsicmp(name.get(), L"if-modified-since") || !_wcsicmp(name.get(), L"cache-control") || !_wcsicmp(name.get(), L"content-type"))
             {
                 headersPtr.push_back({ name.get(), value.get() });
                 headersCo.push_back({ std::move(name), std::move(value) });
