@@ -210,6 +210,7 @@ std::string wstrToUTF8String(const wchar_t* ws)
     auto size = WideCharToMultiByte(CP_UTF8, 0, ws, -1, nullptr, 0, nullptr, nullptr);
     std::string result(size, 0);
     WideCharToMultiByte(CP_UTF8, 0, ws, -1, &result[0], size, nullptr, nullptr);
+    result.resize(size - 1);
     return result;
 }
 
@@ -218,6 +219,7 @@ std::wstring utf8StrToWString(const char* s)
     auto size = MultiByteToWideChar(CP_UTF8, 0, s, -1, nullptr, 0);
     std::wstring result(size, 0);
     MultiByteToWideChar(CP_UTF8, 0, s, -1, &result[0], size);
+    result.resize(size - 1);
     return result;
 }
 
