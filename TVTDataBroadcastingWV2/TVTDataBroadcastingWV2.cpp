@@ -1086,7 +1086,8 @@ void CDataBroadcastingWV2::InitWebView2()
                                 allowedCharacters.is_string() ? std::optional(utf8StrToWString(allowedCharacters.get<std::string>().c_str())) : std::nullopt,
                                 a["maxLength"].get<int>(),
                                 utf8StrToWString(a["value"].get<std::string>().c_str()),
-                                std::move(cb)
+                                std::move(cb),
+                                utf8StrToWString(a["inputMode"].get<std::string>().c_str())
                             );
                             PostMessageW(this->hMessageWnd, WM_APP_INPUT, 0, (LPARAM)inputDialog);
                         }
