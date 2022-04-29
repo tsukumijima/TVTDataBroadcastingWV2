@@ -1,5 +1,5 @@
 import { ResponseMessage } from "../web-bml/server/ws_api";
-import { BMLBrowser, BMLBrowserFontFace, EPG, Indicator, IP } from "../web-bml/client/bml_browser";
+import { BMLBrowser, BMLBrowserFontFace, EPG, Indicator, IP, InputApplication, InputCancelReason, InputCharacterType } from "../web-bml/client/bml_browser";
 import { decodeTS } from "../web-bml/server/decode_ts";
 import { CaptionPlayer } from "../web-bml/client/player/caption_player";
 
@@ -135,6 +135,34 @@ const audioContext = new AudioContext();
 const gainNode = audioContext.createGain();
 gainNode.connect(audioContext.destination);
 
+
+let changeCallback: ((value: string) => void) | undefined;
+
+const inputApplication: InputApplication = {
+    launch(opts) {
+        if (changeCallback != null) {
+            this.cancel("other");
+        }
+        (window as any).chrome.webview.postMessage({
+            type: "input",
+            characterType: opts.characterType,
+            maxLength: opts.maxLength,
+            value: opts.value,
+            allowedCharacters: opts.allowedCharacters,
+        } as FromWebViewMessage);
+        changeCallback = opts.callback;
+    },
+    cancel(reason) {
+        if (changeCallback != null) {
+            changeCallback = undefined;
+            (window as any).chrome.webview.postMessage({
+                type: "cancelInput",
+                reason,
+            } as FromWebViewMessage);
+        }
+    },
+};
+
 const bmlBrowser = new BMLBrowser({
     containerElement: contentElement,
     mediaElement: videoContainer,
@@ -152,6 +180,7 @@ const bmlBrowser = new BMLBrowser({
         }
     },
     ip: apiIP,
+    inputApplication,
 });
 
 // trueであればデータ放送の上に動画を表示させる非表示状態
@@ -214,6 +243,15 @@ type FromWebViewMessage = {
 } | {
     type: "usedKeyList",
     usedKeyList: { [key: string]: boolean },
+} | {
+    type: "cancelInput",
+    reason: InputCancelReason,
+} | {
+    type: "input",
+    characterType: InputCharacterType,
+    allowedCharacters?: string,
+    maxLength: number,
+    value: string,
 };
 
 bmlBrowser.addEventListener("videochanged", (evt) => {
@@ -280,6 +318,11 @@ type ToWebViewMessage = {
 } | {
     type: "enableNetwork",
     enable: boolean,
+} | {
+    type: "changeInput",
+    value: string,
+} | {
+    type: "cancelInput",
 };
 
 function onWebViewMessage(data: ToWebViewMessage, reply: (data: FromWebViewMessage) => void) {
@@ -336,6 +379,11 @@ function onWebViewMessage(data: ToWebViewMessage, reply: (data: FromWebViewMessa
         }
     } else if (data.type === "enableNetwork") {
         networkEnabled = data.enable;
+    } else if (data.type === "changeInput") {
+        changeCallback?.(data.value);
+        changeCallback = undefined;
+    } else if (data.type === "cancelInput") {
+        changeCallback = undefined;
     }
 }
 

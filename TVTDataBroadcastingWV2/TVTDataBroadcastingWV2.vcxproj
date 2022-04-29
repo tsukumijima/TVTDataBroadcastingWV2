@@ -171,12 +171,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="InputDialog.h" />
     <ClInclude Include="NVRAMSettingsDialog.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="proxy.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="InputDialog.cpp" />
     <ClCompile Include="NVRAMSettingsDialog.cpp" />
     <ClCompile Include="proxy.cpp" />
     <ClCompile Include="TVTDataBroadcastingWV2.cpp" />

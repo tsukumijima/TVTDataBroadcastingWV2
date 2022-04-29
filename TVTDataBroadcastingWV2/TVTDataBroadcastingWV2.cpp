@@ -9,6 +9,7 @@
 #include <wil/win32_helpers.h>
 #include "NVRAMSettingsDialog.h"
 #include "proxy.h"
+#include "InputDialog.h"
 
 using namespace Microsoft::WRL;
 
@@ -19,6 +20,7 @@ using namespace Microsoft::WRL;
 #define WM_APP_PACKET (WM_APP + 0)
 #define WM_APP_RESIZE (WM_APP + 1)
 #define WM_APP_RESPONSE (WM_APP + 2)
+#define WM_APP_INPUT (WM_APP + 3)
 
 struct DeferralResponse
 {
@@ -155,6 +157,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     bool useTVTestChannelCommand = true;
     UsedKey usedKey;
     std::unique_ptr<ProxySession> proxySession;
+    std::unique_ptr<InputDialog> inputDialog;
     virtual bool OnChannelChange();
     virtual bool OnServiceChange();
     virtual bool OnServiceUpdate();
@@ -201,6 +204,22 @@ public:
     virtual bool Initialize();
     virtual bool Finalize();
 };
+
+std::string wstrToUTF8String(const wchar_t* ws)
+{
+    auto size = WideCharToMultiByte(CP_UTF8, 0, ws, -1, nullptr, 0, nullptr, nullptr);
+    std::string result(size, 0);
+    WideCharToMultiByte(CP_UTF8, 0, ws, -1, &result[0], size, nullptr, nullptr);
+    return result;
+}
+
+std::wstring utf8StrToWString(const char* s)
+{
+    auto size = MultiByteToWideChar(CP_UTF8, 0, s, -1, nullptr, 0);
+    std::wstring result(size, 0);
+    MultiByteToWideChar(CP_UTF8, 0, s, -1, &result[0], size);
+    return result;
+}
 
 bool CDataBroadcastingWV2::GetPluginInfo(TVTest::PluginInfo* pInfo)
 {
@@ -618,6 +637,44 @@ LRESULT CALLBACK CDataBroadcastingWV2::MessageWndProc(HWND hWnd, UINT uMsg, WPAR
         response->deferral->Complete();
         break;
     }
+    case WM_APP_INPUT:
+    {
+        TVTest::ShowDialogInfo Info;
+
+        Info.Flags = TVTest::SHOW_DIALOG_FLAG_MODELESS;
+        Info.hinst = g_hinstDLL;
+        Info.pszTemplate = MAKEINTRESOURCE(IDD_INPUT);
+        Info.pMessageFunc = InputDialog::DlgProc;
+        pThis->inputDialog = std::unique_ptr<InputDialog>((InputDialog*)lParam);
+        Info.pClientData = pThis->inputDialog.get();
+        Info.hwndOwner = pThis->m_pApp->GetFullscreen() ? pThis->GetFullscreenWindow() : pThis->m_pApp->GetAppWindow();
+
+        auto hWnd = (HWND)pThis->m_pApp->ShowDialog(&Info);
+        if (hWnd)
+        {
+            RECT dialogRect;
+            RECT rect;
+            if (GetWindowRect(hWnd, &dialogRect) && GetWindowRect(Info.hwndOwner, &rect))
+            {
+                // 中央に配置
+                auto x = (rect.right + rect.left) / 2 - (dialogRect.right - dialogRect.left) / 2;
+                auto y = (rect.bottom + rect.top) / 2 - (dialogRect.bottom - dialogRect.top) / 2;
+                RECT moved = { x, y, x + dialogRect.right - dialogRect.left, y + dialogRect.bottom - dialogRect.top };
+                // 範囲外の場合や作業領域からはみ出る場合は移動させない
+                auto monitor = MonitorFromRect(&moved, MONITOR_DEFAULTTONULL);
+                MONITORINFO monitorInfo = { sizeof(MONITORINFO) };
+                if (monitor && GetMonitorInfoW(monitor, &monitorInfo))
+                {
+                    if (monitorInfo.rcWork.left <= moved.left && monitorInfo.rcWork.top <= moved.top && monitorInfo.rcWork.right >= moved.right && monitorInfo.rcWork.bottom >= moved.bottom)
+                    {
+                        SetWindowPos(hWnd, nullptr, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
+                    }
+                }
+            }
+            ShowWindow(hWnd, SW_SHOW);
+        }
+        break;
+    }
     }
     return DefWindowProcW(hWnd, uMsg, wParam, lParam);
 }
@@ -783,22 +840,6 @@ void CDataBroadcastingWV2::OnFilterGraphFinalize(TVTest::FilterGraphInfo* pInfo)
     this->vmr7Renderer = nullptr;
     this->vmr9Renderer = nullptr;
     this->hVideoWnd = nullptr;
-}
-
-std::string wstrToUTF8String(const wchar_t* ws)
-{
-    auto size = WideCharToMultiByte(CP_UTF8, 0, ws, -1, nullptr, 0, nullptr, nullptr);
-    std::string result(size, 0);
-    WideCharToMultiByte(CP_UTF8, 0, ws, -1, &result[0], size, nullptr, nullptr);
-    return result;
-}
-
-std::wstring utf8StrToWString(const char* s)
-{
-    auto size = MultiByteToWideChar(CP_UTF8, 0, s, -1, nullptr, 0);
-    std::wstring result(size, 0);
-    MultiByteToWideChar(CP_UTF8, 0, s, -1, &result[0], size);
-    return result;
 }
 
 void CDataBroadcastingWV2::InitWebView2()
@@ -1009,6 +1050,48 @@ void CDataBroadcastingWV2::InitWebView2()
                             usedKey.numericTuning = usedKeyList["numeric-tuning"].is_boolean();
                             this->usedKey = usedKey;
                         }
+                    }
+                    else if (type == "input")
+                    {
+                        if (this->hMessageWnd)
+                        {
+                            auto&& allowedCharacters = a["allowedCharacters"];
+                            auto cb = [this](std::unique_ptr<WCHAR[]> value)
+                            {
+                                if (!this->webView)
+                                {
+                                    return;
+                                }
+                                if (value)
+                                {
+                                    nlohmann::json msg{ { "type", "changeInput" }, { "value", wstrToUTF8String(value.get()) } };
+                                    std::stringstream ss;
+                                    ss << msg;
+                                    auto wjson = utf8StrToWString(ss.str().c_str());
+                                    this->webView->PostWebMessageAsJson(wjson.c_str());
+                                }
+                                else
+                                {
+                                    nlohmann::json msg{ { "type", "cancelInput" } };
+                                    std::stringstream ss;
+                                    ss << msg;
+                                    auto wjson = utf8StrToWString(ss.str().c_str());
+                                    this->webView->PostWebMessageAsJson(wjson.c_str());
+                                }
+                            };
+                            auto inputDialog = new InputDialog(
+                                utf8StrToWString(a["characterType"].get<std::string>().c_str()),
+                                allowedCharacters.is_string() ? std::optional(utf8StrToWString(allowedCharacters.get<std::string>().c_str())) : std::nullopt,
+                                a["maxLength"].get<int>(),
+                                utf8StrToWString(a["value"].get<std::string>().c_str()),
+                                std::move(cb)
+                            );
+                            PostMessageW(this->hMessageWnd, WM_APP_INPUT, 0, (LPARAM)inputDialog);
+                        }
+                    }
+                    else if (type == "cancelInput")
+                    {
+                        this->inputDialog = nullptr;
                     }
                 }
                 return S_OK;
@@ -1226,6 +1309,8 @@ void CDataBroadcastingWV2::Disable(bool finalize)
 
     this->proxySession = nullptr;
 
+    this->inputDialog = nullptr;
+
     if (finalize)
     {
         auto hWnd = this->hPanelWnd;
@@ -1340,6 +1425,7 @@ bool CDataBroadcastingWV2::OnFullscreenChange(bool fFullscreen)
 {
     if (this->hContainerWnd && this->hMessageWnd)
     {
+        this->inputDialog = nullptr;
         if (!this->invisible)
         {
             // 無理やり動画ウィンドウを移動させている都合上リサイズ時に位置大きさが初期化されてしまうので一時的に非表示にさせる
