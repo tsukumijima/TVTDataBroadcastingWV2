@@ -1034,10 +1034,40 @@ void CDataBroadcastingWV2::InitWebView2()
                         info.Space = -1;
                         if (!this->m_pApp->SelectChannel(&info))
                         {
-                            this->m_pApp->AddLog((L"選局に失敗しました。(original_network_id=" + std::to_wstring(originalNetworkId) + L",transport_stream_id=" + std::to_wstring(transportStreamId) + L",service_id=" + std::to_wstring(serviceId) + L")").c_str(), TVTest::LOG_TYPE_ERROR);
-                            if (this->webView)
+                            int numSpace = 0;
+                            this->m_pApp->GetTuningSpace(&numSpace);
+                            bool success = false;
+                            for (int space = 0; space < numSpace && !success; space++)
                             {
-                                this->webView->Reload();
+                                TVTest::TuningSpaceInfo spaceInfo = { };
+                                if (!this->m_pApp->GetTuningSpaceInfo(space, &spaceInfo))
+                                {
+                                    continue;
+                                }
+                                for (int channel = 0; channel < spaceInfo.Space; channel++)
+                                {
+                                    TVTest::ChannelInfo channelInfo = {};
+                                    if (!this->m_pApp->GetChannelInfo(space, channel, &channelInfo))
+                                    {
+                                        continue;
+                                    }
+                                    // FIXME: original_network_idでない
+                                    if (channelInfo.NetworkID == originalNetworkId && channelInfo.TransportStreamID == transportStreamId)
+                                    {
+                                        success = this->m_pApp->SetChannel(space, channel, serviceId);
+                                        break;
+                                    }
+                                }
+                            }
+                            if (!success)
+                            {
+                                auto msg = (L"データ放送からの選局に失敗しました。映像/音声のないサービスである可能性があります。(original_network_id=" + std::to_wstring(originalNetworkId) + L",transport_stream_id=" + std::to_wstring(transportStreamId) + L",service_id=" + std::to_wstring(serviceId) + L")");
+                                MessageBoxW(this->m_pApp->GetFullscreen() ? this->GetFullscreenWindow() : this->m_pApp->GetAppWindow(), msg.c_str(), nullptr, MB_ICONERROR | MB_OK);
+                                this->m_pApp->AddLog(msg.c_str(), TVTest::LOG_TYPE_ERROR);
+                                if (this->webView)
+                                {
+                                    this->webView->Reload();
+                                }
                             }
                         }
                     }
