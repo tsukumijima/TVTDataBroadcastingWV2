@@ -1039,17 +1039,12 @@ void CDataBroadcastingWV2::InitWebView2()
                             bool success = false;
                             for (int space = 0; space < numSpace && !success; space++)
                             {
-                                TVTest::TuningSpaceInfo spaceInfo = { };
-                                if (!this->m_pApp->GetTuningSpaceInfo(space, &spaceInfo))
-                                {
-                                    continue;
-                                }
-                                for (int channel = 0; channel < spaceInfo.Space; channel++)
+                                for (int channel = 0; ; channel++)
                                 {
                                     TVTest::ChannelInfo channelInfo = {};
                                     if (!this->m_pApp->GetChannelInfo(space, channel, &channelInfo))
                                     {
-                                        continue;
+                                        break;
                                     }
                                     // FIXME: original_network_idでない
                                     if (channelInfo.NetworkID == originalNetworkId && channelInfo.TransportStreamID == transportStreamId)
@@ -1061,7 +1056,7 @@ void CDataBroadcastingWV2::InitWebView2()
                             }
                             if (!success)
                             {
-                                auto msg = (L"データ放送からの選局に失敗しました。映像/音声のないサービスである可能性があります。(original_network_id=" + std::to_wstring(originalNetworkId) + L",transport_stream_id=" + std::to_wstring(transportStreamId) + L",service_id=" + std::to_wstring(serviceId) + L")");
+                                auto msg = (L"データ放送からの選局に失敗しました。映像/音声のないサービスまたはチャンネルスキャンされていない可能性があります。(original_network_id=" + std::to_wstring(originalNetworkId) + L",transport_stream_id=" + std::to_wstring(transportStreamId) + L",service_id=" + std::to_wstring(serviceId) + L")");
                                 MessageBoxW(this->m_pApp->GetFullscreen() ? this->GetFullscreenWindow() : this->m_pApp->GetAppWindow(), msg.c_str(), nullptr, MB_ICONERROR | MB_OK);
                                 this->m_pApp->AddLog(msg.c_str(), TVTest::LOG_TYPE_ERROR);
                                 if (this->webView)
