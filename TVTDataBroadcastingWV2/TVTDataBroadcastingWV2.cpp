@@ -9,6 +9,7 @@
 #include <wil/win32_helpers.h>
 #include "NVRAMSettingsDialog.h"
 #include "proxy.h"
+#include "dns.h"
 #include "InputDialog.h"
 
 using namespace Microsoft::WRL;
@@ -1025,7 +1026,7 @@ void CDataBroadcastingWV2::InitWebView2()
                         auto serviceId = a["serviceId"].get<int>();
                         TVTest::ChannelSelectInfo info = {};
                         info.Size = sizeof(info);
-                        info.Flags = TVTest::CHANNEL_SELECT_FLAG_STRICTSERVICE;
+                        info.Flags = TVTest::CHANNEL_SELECT_FLAG_STRICTSERVICE | TVTest::CHANNEL_SELECT_FLAG_ALLOWDISABLED;
                         // FIXME: original_network_idでない
                         info.NetworkID = originalNetworkId;
                         info.TransportStreamID = transportStreamId;
