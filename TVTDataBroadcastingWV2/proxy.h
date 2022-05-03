@@ -47,4 +47,6 @@ public:
         std::function<void(DWORD statusCode, LPCWSTR statusCodeText, LPCWSTR headers, size_t contentLength, BYTE* content)> callback
     );
     ~ProxyRequest();
+    ProxyRequest(const ProxyRequest&) = delete;
+    ProxyRequest& operator=(const ProxyRequest&) = delete;
 };
