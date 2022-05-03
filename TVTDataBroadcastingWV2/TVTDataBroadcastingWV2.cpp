@@ -9,7 +9,6 @@
 #include <wil/win32_helpers.h>
 #include "NVRAMSettingsDialog.h"
 #include "proxy.h"
-#include "dns.h"
 #include "InputDialog.h"
 
 using namespace Microsoft::WRL;
