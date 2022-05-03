@@ -149,6 +149,7 @@ const inputApplication: InputApplication = {
             maxLength: opts.maxLength,
             value: opts.value,
             allowedCharacters: opts.allowedCharacters,
+            inputMode: opts.inputMode,
         } as FromWebViewMessage);
         changeCallback = opts.callback;
     },
@@ -252,6 +253,7 @@ type FromWebViewMessage = {
     allowedCharacters?: string,
     maxLength: number,
     value: string,
+    inputMode: "text" | "password",
 };
 
 bmlBrowser.addEventListener("videochanged", (evt) => {
