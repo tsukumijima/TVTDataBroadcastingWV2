@@ -182,6 +182,14 @@ const bmlBrowser = new BMLBrowser({
     },
     ip: apiIP,
     inputApplication,
+    greg: {
+        getReg(index) {
+            return window.sessionStorage.getItem(`Greg[${index}]`) ?? "";
+        },
+        setReg(index, value) {
+            window.sessionStorage.setItem(`Greg[${index}]`, value);
+        },
+    },
 });
 
 // trueであればデータ放送の上に動画を表示させる非表示状態
