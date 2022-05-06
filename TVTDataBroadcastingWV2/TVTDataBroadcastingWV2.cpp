@@ -309,11 +309,13 @@ BOOL CALLBACK CDataBroadcastingWV2::WindowMessageCallback(HWND hwnd, UINT uMsg, 
         auto pThis = (CDataBroadcastingWV2*)pUserData;
         if (pThis->hContainerWnd && pThis->hMessageWnd)
         {
+#if 0
             if (!pThis->invisible)
             {
                 // 無理やり動画ウィンドウを移動させている都合上リサイズ時に位置大きさが初期化されてしまうので一時的に非表示にさせる
                 SetWindowPos(pThis->hVideoWnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_HIDEWINDOW);
             }
+#endif
             // 実際に動画ウィンドウの大きさが変わるのはメッセージ処理後なのでPostMessageでやり過ごす
             PostMessageW(pThis->hMessageWnd, WM_APP_RESIZE, 0, 0);
         }
@@ -492,10 +494,12 @@ LRESULT CALLBACK CDataBroadcastingWV2::MessageWndProc(HWND hWnd, UINT uMsg, WPAR
     {
         if (pThis->webViewController)
         {
+#if 0
             if (pThis->hVideoWnd)
             {
                 SetTimer(pThis->hMessageWnd, IDT_SHOW_EVR_WINDOW, 50, nullptr);
             }
+#endif
             RECT rect;
             if (GetClientRect(pThis->hContainerWnd, &rect))
             {
@@ -1455,11 +1459,13 @@ bool CDataBroadcastingWV2::OnFullscreenChange(bool fFullscreen)
     if (this->hContainerWnd && this->hMessageWnd)
     {
         this->inputDialog = nullptr;
+#if 0
         if (!this->invisible)
         {
             // 無理やり動画ウィンドウを移動させている都合上リサイズ時に位置大きさが初期化されてしまうので一時的に非表示にさせる
             SetWindowPos(this->hVideoWnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_HIDEWINDOW);
         }
+#endif
         // 実際に動画ウィンドウの大きさが変わるのはメッセージ処理後なのでPostMessageでやり過ごす
         PostMessageW(this->hMessageWnd, WM_APP_RESIZE, 0, 0);
     }
