@@ -156,7 +156,10 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     bool useTVTestVolume = true;
     bool useTVTestChannelCommand = true;
     UsedKey usedKey;
+    // iniのEnableNetworkが1であればProxySessionが初期化されenableNetworkもtrueになる
+    // ただしenableNetworkの方は実行時にチェックボックスで切り替えられる
     std::unique_ptr<ProxySession> proxySession;
+    bool enableNetwork = true;
     std::unique_ptr<InputDialog> inputDialog;
     virtual bool OnChannelChange();
     virtual bool OnServiceChange();
@@ -187,6 +190,8 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     void Disable(bool finalize);
     void EnablePanelButtons(bool enable);
     HRESULT Proxy(ICoreWebView2WebResourceRequestedEventArgs* args, LPCWSTR proxyUrl);
+    void SetNetworkState(bool enable);
+    void UpdateNetworkState();
 
     wil::com_ptr<ICoreWebView2Controller> webViewController;
     wil::com_ptr<ICoreWebView2> webView;
@@ -953,7 +958,7 @@ void CDataBroadcastingWV2::InitWebView2()
                 {
                     proxyUrl = uri.get() + wcslen(post);
                 }
-                if (this->proxySession && proxyUrl)
+                if (this->proxySession && proxyUrl && this->enableNetwork)
                 {
                     return this->Proxy(args, proxyUrl);
                 }
@@ -1131,11 +1136,7 @@ void CDataBroadcastingWV2::InitWebView2()
                 this->UpdateVolume();
                 if (this->proxySession)
                 {
-                    nlohmann::json msg{ { "type", "enableNetwork" }, { "enable", true } };
-                    std::stringstream ss;
-                    ss << msg;
-                    auto wjson = utf8StrToWString(ss.str().c_str());
-                    this->webView->PostWebMessageAsJson(wjson.c_str());
+                    this->UpdateNetworkState();
                 }
                 this->webViewLoaded = true;
                 return S_OK;
@@ -1501,6 +1502,30 @@ void CDataBroadcastingWV2::SetCaptionState(bool enable)
     this->UpdateCaptionState(true);
 }
 
+void CDataBroadcastingWV2::SetNetworkState(bool enable)
+{
+    this->enableNetwork = enable;
+    auto label = enable ? L"通信機能を無効化" : L"通信機能を有効化";
+    if (this->hRemoteWnd)
+    {
+        SetDlgItemTextW(this->hRemoteWnd, IDC_TOGGLE_NETWORK, label);
+    }
+    if (this->hPanelWnd)
+    {
+        SetDlgItemTextW(this->hPanelWnd, IDC_TOGGLE_NETWORK, label);
+    }
+    this->UpdateNetworkState();
+}
+
+void CDataBroadcastingWV2::UpdateNetworkState()
+{
+    nlohmann::json msg{ { "type", "enableNetwork" }, { "enable", this->enableNetwork } };
+    std::stringstream ss;
+    ss << msg;
+    auto wjson = utf8StrToWString(ss.str().c_str());
+    this->webView->PostWebMessageAsJson(wjson.c_str());
+}
+
 enum class UsedKeyType
 {
     Basic,
@@ -1624,6 +1649,9 @@ bool CDataBroadcastingWV2::OnCommand(int ID)
         }
         break;
     }
+    case IDC_TOGGLE_NETWORK:
+        this->SetNetworkState(!this->enableNetwork);
+        break;
     default:
     {
         auto command = commandList.find(ID);
@@ -1673,6 +1701,10 @@ INT_PTR CALLBACK CDataBroadcastingWV2::RemoteControlDlgProc(HWND hDlg, UINT uMsg
         if (pThis->caption)
         {
             SendDlgItemMessageW(hDlg, IDC_TOGGLE_CAPTION, BM_SETCHECK, BST_CHECKED, 0);
+        }
+        if (pThis->GetIniItem(L"EnableNetwork", 0))
+        {
+            SetWindowLongW(GetDlgItem(hDlg, IDC_TOGGLE_NETWORK), GWL_STYLE, GetWindowLongW(GetDlgItem(hDlg, IDC_TOGGLE_NETWORK), GWL_STYLE) | WS_VISIBLE);
         }
         return 1;
     }
@@ -1759,10 +1791,18 @@ INT_PTR CALLBACK CDataBroadcastingWV2::PanelRemoteControlDlgProc(HWND hDlg, UINT
         {
             SendDlgItemMessageW(hDlg, IDC_TOGGLE_CAPTION, BM_SETCHECK, BST_CHECKED, 0);
         }
+        if (pThis->GetIniItem(L"EnableNetwork", 0))
+        {
+            SetWindowLongW(GetDlgItem(hDlg, IDC_TOGGLE_NETWORK), GWL_STYLE, GetWindowLongW(GetDlgItem(hDlg, IDC_TOGGLE_NETWORK), GWL_STYLE) | WS_VISIBLE);
+        }
         return 1;
     }
+    case WM_CTLCOLORSTATIC:
+        SetTextColor((HDC)wParam, RGB(255, 255, 255));
+        return (INT_PTR)pThis->hbrPanelBack;
     case WM_CTLCOLORBTN:
     case WM_CTLCOLORDLG:
+        SetTextColor((HDC)wParam, RGB(255, 255, 255));
         return (INT_PTR)pThis->hbrPanelBack;
     case WM_DESTROY:
     {
