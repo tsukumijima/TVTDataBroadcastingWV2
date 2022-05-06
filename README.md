@@ -16,7 +16,7 @@
     * もしインストールされていなければインストール
         * インストーラ: https://go.microsoft.com/fwlink/p/?LinkId=2124703
         * 配布ページ: https://developer.microsoft.com/ja-jp/microsoft-edge/webview2/#download-section
-        * `Plugins/TVTDataBroadcastingWV2/WebView2/msedgewebview2.exe` `Plugins/TVTDataBroadcastingWV2/WebView2/EBWebView/x64/EmbeddedBrowserWebView.dll` のようにFixed Versionを直接配置しても可能
+        * OSが32-bitでなければTVTestのアーキテクチャに関わらずx64で動作する `Plugins/TVTDataBroadcastingWV2/WebView2/msedgewebview2.exe` `Plugins/TVTDataBroadcastingWV2/WebView2/EBWebView/x64/EmbeddedBrowserWebView.dll` のように300MB以上, 200ファイル程度あるFixed Versionを直接配置しても可能
 * Visual C++ 2015-2022ランタイム
     * 万が一入っていなければTVTestのアーキテクチャに合わせて https://aka.ms/vs/17/release/vc_redist.x64.exe (x64) https://aka.ms/vs/17/release/vc_redist.x86.exe (x86) からインストール
 
@@ -55,9 +55,17 @@ EnableNetwork=1
 
 ### TVTest起動時にプラグインを有効にする
 
+### 音量をTVTestと連動する
+
+操作音などの音量
+
+### 数字ボタンが使われていなければTVTestに渡す
+
+データ放送中で数字キーが使われていない場合数字コマンドで選局可能にする
+
 ## 制約
 
-おおよそ実装されていますがinputmodeや一部のAPI、イベント、要素は未実装です。
+おおよそ実装されていますが一部のAPI、イベント、要素は未実装です。
 
 通信機能は規定で無効であり、その場合すべての外部へのリクエストはブロックされます。(ICoreWebView2::add_WebResourceRequestedを呼んでいる部分を参照)
 
