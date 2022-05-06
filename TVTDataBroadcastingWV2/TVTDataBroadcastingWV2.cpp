@@ -157,7 +157,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     bool useTVTestChannelCommand = true;
     UsedKey usedKey;
     // iniのEnableNetworkが1であればProxySessionが初期化されenableNetworkもtrueになる
-    // ただしenableNetworkの方は実行時にチェックボックスで切り替えられる
+    // ただしenableNetworkの方は実行時にボタンで切り替えられる
     std::unique_ptr<ProxySession> proxySession;
     bool enableNetwork = true;
     std::unique_ptr<InputDialog> inputDialog;
@@ -1797,12 +1797,8 @@ INT_PTR CALLBACK CDataBroadcastingWV2::PanelRemoteControlDlgProc(HWND hDlg, UINT
         }
         return 1;
     }
-    case WM_CTLCOLORSTATIC:
-        SetTextColor((HDC)wParam, RGB(255, 255, 255));
-        return (INT_PTR)pThis->hbrPanelBack;
     case WM_CTLCOLORBTN:
     case WM_CTLCOLORDLG:
-        SetTextColor((HDC)wParam, RGB(255, 255, 255));
         return (INT_PTR)pThis->hbrPanelBack;
     case WM_DESTROY:
     {
