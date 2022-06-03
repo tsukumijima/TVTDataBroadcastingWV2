@@ -8,7 +8,7 @@
 
 ## 動作環境
 
-* TVTest 0.9.0以上
+* TVTest 0.9.0 正式版以上
 * Windows 10以上
     * Windows 7用の対応は入れていないのでWindows 7では映像と正常に合成できないはず 8.xなら動くかも
 * WebView2ランタイム
@@ -67,7 +67,7 @@ EnableNetwork=1
 
 おおよそ実装されていますが一部のAPI、イベント、要素は未実装です。
 
-通信機能は規定で無効であり、その場合すべての外部へのリクエストはブロックされます。(ICoreWebView2::add_WebResourceRequestedを呼んでいる部分を参照)
+通信機能は既定では無効であり、その場合すべての外部へのリクエストはブロックされます。(ICoreWebView2::add_WebResourceRequestedを呼んでいる部分を参照)
 
 ## ビルド方法
 
