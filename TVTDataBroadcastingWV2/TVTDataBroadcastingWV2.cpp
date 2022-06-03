@@ -1525,6 +1525,10 @@ void CDataBroadcastingWV2::SetNetworkState(bool enable)
 
 void CDataBroadcastingWV2::UpdateNetworkState()
 {
+    if (!this->webView)
+    {
+        return;
+    }
     nlohmann::json msg{ { "type", "enableNetwork" }, { "enable", this->enableNetwork } };
     std::stringstream ss;
     ss << msg;
@@ -1602,6 +1606,10 @@ bool CDataBroadcastingWV2::OnCommand(int ID)
         }
         return this->OnPluginSettings(this->m_pApp->GetAppWindow());
     }
+    if (ID == IDC_TOGGLE_NETWORK)
+    {
+        this->SetNetworkState(!this->enableNetwork);
+    }
     if (!this->webView)
     {
         if (ID == IDC_KEY_D_OR_ENABLE_PLUGIN)
@@ -1655,9 +1663,6 @@ bool CDataBroadcastingWV2::OnCommand(int ID)
         }
         break;
     }
-    case IDC_TOGGLE_NETWORK:
-        this->SetNetworkState(!this->enableNetwork);
-        break;
     default:
     {
         auto command = commandList.find(ID);
