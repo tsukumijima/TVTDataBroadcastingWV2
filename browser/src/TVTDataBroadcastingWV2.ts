@@ -300,6 +300,8 @@ const tsStream = decodeTS({
     parsePES: true
 });
 
+tsStream.on("data", () => {});
+
 type ToWebViewMessage = {
     type: "stream",
     data: number[],
@@ -339,7 +341,7 @@ function onWebViewMessage(data: ToWebViewMessage, reply: (data: FromWebViewMessa
     if (data.type === "stream") {
         const ts = data.data;
         const prevPCR = pcr;
-        tsStream._transform(Buffer.from(ts), null, () => { });
+        tsStream.parse(Buffer.from(ts));
         const curPCR = pcr;
         if (prevPCR !== curPCR && curPCR != null) {
             player.updateTime(curPCR - 450);
