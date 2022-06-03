@@ -190,6 +190,21 @@ const bmlBrowser = new BMLBrowser({
             window.sessionStorage.setItem(`Greg[${index}]`, value);
         },
     },
+    setMainAudioStreamCallback(componentId, channelId) {
+        const index = audioESList.findIndex(x => x.componentId === componentId);
+        const es = audioESList[index];
+        if (es == null) {
+            return false;
+        }
+        (window as any).chrome.webview.postMessage({
+            type: "changeMainAudioStream",
+            componentId,
+            index,
+            pid: es.pid,
+            channelId,
+        } as FromWebViewMessage);
+        return true;
+    }
 });
 
 // trueであればデータ放送の上に動画を表示させる非表示状態
@@ -262,6 +277,19 @@ type FromWebViewMessage = {
     maxLength: number,
     value: string,
     inputMode: "text" | "password",
+} | {
+    type: "changeAudioStream",
+    componentId: number,
+    pid: number,
+    // -1
+    index: number,
+    channelId?: number,
+} | {
+    type: "changeMainAudioStream",
+    componentId: number,
+    pid: number,
+    index: number,
+    channelId?: number,
 };
 
 bmlBrowser.addEventListener("videochanged", (evt) => {
@@ -277,19 +305,48 @@ bmlBrowser.addEventListener("videochanged", (evt) => {
 });
 
 bmlBrowser.addEventListener("usedkeylistchanged", (evt) => {
-    const { usedKeyList } = evt.detail; (window as any).chrome.webview.postMessage({
+    const { usedKeyList } = evt.detail;
+    (window as any).chrome.webview.postMessage({
         type: "usedKeyList",
         usedKeyList: Object.fromEntries([...usedKeyList.values()].map(x => [x, true])),
     } as FromWebViewMessage);
 });
 
+bmlBrowser.addEventListener("audiostreamchanged", (evt) => {
+    const { componentId, channelId } = evt.detail;
+    const index = audioESList.findIndex(x => x.componentId === componentId);
+    (window as any).chrome.webview.postMessage({
+        type: "changeAudioStream",
+        componentId,
+        index,
+        pid: audioESList[index]?.pid,
+        channelId,
+    } as FromWebViewMessage);
+});
+
 let pcr: number | undefined;
+
+// LibISDB/Filters/AnalyzerFilter.cppを参照
+const audioStreamType = new Set([
+    0x03,
+    0x04,
+    0x0f,
+    0x11,
+    0x81,
+    0x82,
+    0x83,
+    0x87,
+]);
+
+let audioESList: ComponentPMT[] = [];
 
 function onMessage(msg: ResponseMessage) {
     if (msg.type === "pes") {
         player.push(msg.streamId, Uint8Array.from(msg.data), msg.pts);
     } else if (msg.type === "pcr") {
         pcr = (msg.pcrBase + msg.pcrExtension / 300) / 90;
+    } else if (msg.type === "pmt") {
+        audioESList = msg.components.filter(x => audioStreamType.has(x.streamType)).sort((a, b) => a.componentId - b.componentId);
     }
     bmlBrowser.emitMessage(msg);
 }
@@ -297,10 +354,10 @@ function onMessage(msg: ResponseMessage) {
 const tsStream = decodeTS({
     sendCallback: onMessage,
     serviceId: Number(new URL(location.href).searchParams.get("serviceId")) || undefined,
-    parsePES: true
+    parsePES: true,
 });
 
-tsStream.on("data", () => {});
+tsStream.on("data", () => { });
 
 type ToWebViewMessage = {
     type: "stream",
@@ -335,6 +392,11 @@ type ToWebViewMessage = {
     value: string,
 } | {
     type: "cancelInput",
+} | {
+    type: "mainAudioStreamChanged",
+    pid?: number,
+    index: number,
+    channelId: number,
 };
 
 function onWebViewMessage(data: ToWebViewMessage, reply: (data: FromWebViewMessage) => void) {
@@ -396,6 +458,12 @@ function onWebViewMessage(data: ToWebViewMessage, reply: (data: FromWebViewMessa
         changeCallback = undefined;
     } else if (data.type === "cancelInput") {
         changeCallback = undefined;
+    } else if (data.type === "mainAudioStreamChanged") {
+        const index = data.pid != null ? audioESList.findIndex(x => x.pid === data.pid) : data.index;
+        const es = audioESList[index];
+        if (es != null) {
+            bmlBrowser.setMainAudioStream(es.componentId, data.channelId);
+        }
     }
 }
 

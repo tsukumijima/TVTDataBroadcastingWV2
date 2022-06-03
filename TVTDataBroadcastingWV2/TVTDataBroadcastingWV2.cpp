@@ -161,6 +161,10 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     std::unique_ptr<ProxySession> proxySession;
     bool enableNetwork = true;
     std::unique_ptr<InputDialog> inputDialog;
+    int mainAudioIndex = 0;
+    std::optional<int> mainAudioStereoMode = std::nullopt;
+    bool isPlayingMainAudio = true;
+    bool isDualMono = false; // FIXME: デュアルモノ判定
     virtual bool OnChannelChange();
     virtual bool OnServiceChange();
     virtual bool OnServiceUpdate();
@@ -174,6 +178,8 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     virtual bool OnColorChange();
     virtual bool OnPanelItemNotify(TVTest::PanelItemEventInfo* pInfo);
     virtual bool OnVolumeChange(int Volume, bool fMute);
+    virtual bool OnAudioStreamChange(int Stream);
+    virtual bool OnStereoModeChange(int StereoMode);
 
     HWND GetFullscreenWindow();
     void RestoreVideoWindow();
@@ -192,6 +198,8 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     HRESULT Proxy(ICoreWebView2WebResourceRequestedEventArgs* args, LPCWSTR proxyUrl);
     void SetNetworkState(bool enable);
     void UpdateNetworkState();
+    void UpdateAudioStream();
+    void RestoreMainAudio();
 
     wil::com_ptr<ICoreWebView2Controller> webViewController;
     wil::com_ptr<ICoreWebView2> webView;
@@ -853,6 +861,40 @@ void CDataBroadcastingWV2::OnFilterGraphFinalize(TVTest::FilterGraphInfo* pInfo)
     this->hVideoWnd = nullptr;
 }
 
+int ChannelIdToStereoMode(int channelId)
+{
+    switch (channelId)
+    {
+        // 第一チャンネル
+    case 1:
+        return (int)TVTest::STEREOMODE_LEFT;
+        // 第二チャンネル
+    case 2:
+        return (int)TVTest::STEREOMODE_RIGHT;
+        // 両方
+    case 3:
+        return (int)TVTest::STEREOMODE_STEREO;
+    }
+    return -1;
+}
+
+int StereoModeToChannelId(int stereoMode)
+{
+    switch (stereoMode)
+    {
+        // 第一チャンネル
+    case (int)TVTest::STEREOMODE_LEFT:
+        return 1;
+        // 第二チャンネル
+    case (int)TVTest::STEREOMODE_RIGHT:
+        return 2;
+        // 両方
+    case (int)TVTest::STEREOMODE_STEREO:
+        return 3;
+    }
+    return -1;
+}
+
 void CDataBroadcastingWV2::InitWebView2()
 {
     if (!this->hContainerWnd)
@@ -1130,6 +1172,48 @@ void CDataBroadcastingWV2::InitWebView2()
                     {
                         this->inputDialog = nullptr;
                     }
+                    else if (type == "changeAudioStream")
+                    {
+                        auto componentId = a["componentId"].get<int>();
+                        auto index = a["index"].get<int>();
+                        auto&& channelId = a["channelId"];
+                        if (componentId == -1)
+                        {
+                            this->RestoreMainAudio();
+                        }
+                        else
+                        {
+                            this->isPlayingMainAudio = false;
+                            this->m_pApp->SetAudioStream(index);
+                            if (channelId.is_number_integer())
+                            {
+                                this->m_pApp->SetStereoMode(ChannelIdToStereoMode(channelId.get<int>()));
+                            }
+                        }
+                    }
+                    else if (type == "changeMainAudioStream")
+                    {
+                        auto componentId = a["componentId"].get<int>();
+                        auto index = a["index"].get<int>();
+                        auto&& channelId = a["channelId"];
+                        this->mainAudioIndex = index;
+                        if (channelId.is_number_integer())
+                        {
+                            this->mainAudioStereoMode = ChannelIdToStereoMode(channelId.get<int>());
+                        }
+                        else
+                        {
+                            this->mainAudioStereoMode = std::nullopt;
+                        }
+                        if (this->isPlayingMainAudio)
+                        {
+                            this->m_pApp->SetAudioStream(this->mainAudioIndex);
+                            if (this->isDualMono && this->mainAudioStereoMode.has_value())
+                            {
+                                this->m_pApp->SetStereoMode(this->mainAudioStereoMode.value());
+                            }
+                        }
+                    }
                 }
                 return S_OK;
             }).Get(), &token);
@@ -1142,6 +1226,7 @@ void CDataBroadcastingWV2::InitWebView2()
                 {
                     this->UpdateNetworkState();
                 }
+                this->UpdateAudioStream();
                 this->webViewLoaded = true;
                 return S_OK;
             }).Get(), &token);
@@ -1310,6 +1395,7 @@ void CDataBroadcastingWV2::ResizeVideoWindow()
 
 void CDataBroadcastingWV2::Disable(bool finalize)
 {
+    this->RestoreMainAudio();
     this->RestoreVideoWindow();
     m_pApp->SetStreamCallback(TVTest::STREAM_CALLBACK_REMOVE, StreamCallback, this);
     if (!finalize)
@@ -1993,6 +2079,66 @@ bool CDataBroadcastingWV2::OnVolumeChange(int Volume, bool fMute)
     this->currentVolume = fMute ? 0 : Volume;
     this->UpdateVolume();
     return true;
+}
+
+void CDataBroadcastingWV2::UpdateAudioStream()
+{
+    auto index = this->m_pApp->GetAudioStream();
+    auto stereoMode = this->m_pApp->GetStereoMode();
+    if (this->isPlayingMainAudio)
+    {
+        this->mainAudioIndex = index;
+        this->mainAudioStereoMode = this->isDualMono ? std::optional(this->m_pApp->GetStereoMode()) : std::nullopt;
+    }
+    if (!this->webView)
+    {
+        return;
+    }
+    nlohmann::json msg{ { "type", "mainAudioStreamChanged" }, { "index", index } };
+    if (index >= 0 && _countof(this->currentService.AudioPID) > index && this->currentService.NumAudioPIDs > index)
+    {
+        msg.push_back({ "pid", this->currentService.AudioPID[index] });
+    }
+    if (this->mainAudioStereoMode.has_value())
+    {
+        msg.push_back({ "channelId", StereoModeToChannelId(this->mainAudioStereoMode.value()) });
+    }
+    std::stringstream ss;
+    ss << msg;
+    auto wjson = utf8StrToWString(ss.str().c_str());
+    this->webView->PostWebMessageAsJson(wjson.c_str());
+}
+
+// Index=1からサービスを変更したとしてもOnAudioStreamChangeは呼ばれない
+// ただしOnStereoModeChangeは複数回呼ばれるので問題なさそう
+
+bool CDataBroadcastingWV2::OnAudioStreamChange(int Stream)
+{
+    UNREFERENCED_PARAMETER(Stream);
+    this->UpdateAudioStream();
+    return true;
+}
+
+
+bool CDataBroadcastingWV2::OnStereoModeChange(int StereoMode)
+{
+    UNREFERENCED_PARAMETER(StereoMode);
+    this->UpdateAudioStream();
+    return true;
+}
+
+void CDataBroadcastingWV2::RestoreMainAudio()
+{
+    if (this->isPlayingMainAudio)
+    {
+        return;
+    }
+    this->isPlayingMainAudio = true;
+    this->m_pApp->SetAudioStream(this->mainAudioIndex);
+    if (this->isDualMono && this->mainAudioStereoMode.has_value())
+    {
+        this->m_pApp->SetStereoMode(this->mainAudioStereoMode.value());
+    }
 }
 
 TVTest::CTVTestPlugin* CreatePluginClass()
