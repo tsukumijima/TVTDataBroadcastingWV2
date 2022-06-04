@@ -364,6 +364,10 @@ type ToWebViewMessage = {
     data: number[],
     time?: number,
 } | {
+    type: "streamBase64",
+    data: string,
+    time?: number,
+} | {
     type: "key",
     keyCode: number,
 } | {
@@ -404,6 +408,14 @@ function onWebViewMessage(data: ToWebViewMessage, reply: (data: FromWebViewMessa
         const ts = data.data;
         const prevPCR = pcr;
         tsStream.parse(Buffer.from(ts));
+        const curPCR = pcr;
+        if (prevPCR !== curPCR && curPCR != null) {
+            player.updateTime(curPCR - 450);
+        }
+    } else if (data.type === "streamBase64") {
+        const ts = data.data;
+        const prevPCR = pcr;
+        tsStream.parse(Buffer.from(ts, "base64"));
         const curPCR = pcr;
         if (prevPCR !== curPCR && curPCR != null) {
             player.updateTime(curPCR - 450);

@@ -605,11 +605,11 @@ LRESULT CALLBACK CDataBroadcastingWV2::MessageWndProc(HWND hWnd, UINT uMsg, WPAR
             {
                 continue;
             }
-            WCHAR head[] = LR"({"type":"stream","data":[)";
-            WCHAR tail[] = LR"(]})";
+            WCHAR head[] = LR"({"type":"streamBase64","data":")";
+            WCHAR tail[] = LR"("})";
             auto packetBlockSize = packets.value().size();
             auto packetSize = pThis->packetQueue.packetSize;
-            size_t size = _countof(head) - 1 + packetBlockSize * 4 /* '255,' */ + _countof(tail) + 1;
+            size_t size = _countof(head) - 1 + (packetBlockSize + 2) / 3 * 4 /* Base64 */ + _countof(tail) + 1;
             if (pThis->packetsToJsonBuf.size() < size)
             {
                 pThis->packetsToJsonBuf.resize(size);
@@ -620,37 +620,19 @@ LRESULT CALLBACK CDataBroadcastingWV2::MessageWndProc(HWND hWnd, UINT uMsg, WPAR
                 size_t pos = 0;
                 pos += wcslen(head);
                 auto buffer = packets.value().data();
-                for (size_t p = 0; p < packetBlockSize; p += packetSize)
+                static const WCHAR base64[66] = L"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+                for (size_t i = 0; i < packetBlockSize; i += 3)
                 {
-                    for (size_t i = p; i < p + packetSize; i++)
-                    {
-                        // デバッグビルドだからかitowとか遅すぎて間に合わないので自前でやる
-                        if (buffer[i] < 10)
-                        {
-                            buf[pos] = L'0' + buffer[i];
-                            pos += 1;
-                        }
-                        else if (buffer[i] < 100)
-                        {
-                            buf[pos] = L'0' + (buffer[i] / 10);
-                            pos += 1;
-                            buf[pos] = L'0' + (buffer[i] % 10);
-                            pos += 1;
-                        }
-                        else
-                        {
-                            buf[pos] = L'0' + (buffer[i] / 100);
-                            pos += 1;
-                            buf[pos] = L'0' + ((buffer[i] / 10) % 10);
-                            pos += 1;
-                            buf[pos] = L'0' + (buffer[i] % 10);
-                            pos += 1;
-                        }
-                        buf[pos] = L',';
-                        pos += 1;
-                    }
+                    buf[pos] = base64[buffer[i] >> 2];
+                    pos += 1;
+                    buf[pos] = base64[((buffer[i] & 3) << 4) | (i + 1 < packetBlockSize ? buffer[i + 1] >> 4 : 0)];
+                    pos += 1;
+                    buf[pos] = base64[i + 1 < packetBlockSize ? ((buffer[i + 1] & 15) << 2) |
+                                                                (i + 2 < packetBlockSize ? buffer[i + 2] >> 6 : 0) : 64];
+                    pos += 1;
+                    buf[pos] = base64[i + 2 < packetBlockSize ? buffer[i + 2] & 63 : 64];
+                    pos += 1;
                 }
-                pos--;
                 wcscpy_s(buf + pos, size - pos, tail);
                 auto hr = pThis->webView->PostWebMessageAsJson(buf);
             }
