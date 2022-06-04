@@ -318,10 +318,6 @@ bool CDataBroadcastingWV2::GetPluginInfo(TVTest::PluginInfo* pInfo)
 BOOL CALLBACK CDataBroadcastingWV2::StreamCallback(BYTE* pData, void* pClientData)
 {
     auto pThis = (CDataBroadcastingWV2*)pClientData;
-    if (!pThis->webViewLoaded)
-    {
-        return TRUE;
-    }
     if (pThis->packetQueue.enqueuePacket(pData))
     {
         PostMessageW(pThis->hMessageWnd, WM_APP_PACKET, 0, 0);
@@ -364,6 +360,8 @@ bool CDataBroadcastingWV2::OnServiceUpdate()
     }
     // 動画、音声のPESは不要なので削っておく
     this->packetQueue.setPIDsToExclude(std::move(pesPIDList));
+
+    this->packetQueue.clear();
     Tune();
     return true;
 }
@@ -593,6 +591,11 @@ LRESULT CALLBACK CDataBroadcastingWV2::MessageWndProc(HWND hWnd, UINT uMsg, WPAR
     }
     case WM_APP_PACKET:
     {
+        if (!pThis->webView || !pThis->webViewLoaded)
+        {
+            // キューを消費しない
+            break;
+        }
         // スレッドが失速して回復したときなどに応答を維持するためメッセージごとの処理数を制限
         for (int popCount = 0; popCount < 5; popCount++)
         {
@@ -600,10 +603,6 @@ LRESULT CALLBACK CDataBroadcastingWV2::MessageWndProc(HWND hWnd, UINT uMsg, WPAR
             if (!packets)
             {
                 break;
-            }
-            if (!pThis->webView)
-            {
-                continue;
             }
             WCHAR head[] = LR"({"type":"streamBase64","data":")";
             WCHAR tail[] = LR"("})";
@@ -1538,7 +1537,6 @@ void CDataBroadcastingWV2::Tune()
             if (_wcsicmp(source.get(), baseUrl.c_str()))
             {
                 this->RestoreVideoWindow();
-                this->packetQueue.clear();
                 this->webView->Navigate(baseUrl.c_str());
                 this->usedKey.basic = true;
                 this->usedKey.dataButton = true;
