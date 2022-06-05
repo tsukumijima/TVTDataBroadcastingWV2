@@ -135,6 +135,7 @@ const audioContext = new AudioContext();
 const gainNode = audioContext.createGain();
 gainNode.connect(audioContext.destination);
 
+player.setPRAAudioNode(gainNode);
 
 let changeCallback: ((value: string) => void) | undefined;
 
