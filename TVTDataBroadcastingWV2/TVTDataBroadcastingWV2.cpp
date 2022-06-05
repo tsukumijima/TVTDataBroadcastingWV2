@@ -56,9 +56,13 @@ private:
     std::vector<BYTE> currentBlock;
     std::queue<std::vector<BYTE>> queue;
     std::atomic<bool> invalidate;
+    std::unordered_set<WORD> pidsToExclude;
+    std::unordered_map<WORD, int> pcrPIDCandidates;
+    int pcrPID = -1;
+    DWORD pcr = 0;
+    DWORD lastBlockPCR = 0;
 public:
     const size_t packetSize = 188;
-    // PCRパケットの間隔程度で処理することが望ましい
     const size_t packetBlockSize = packetSize * 500;
     const size_t maxQueueLength = 100;
 
@@ -74,19 +78,73 @@ public:
         {
             this->currentBlock.clear();
         }
-        this->currentBlock.insert(this->currentBlock.end(), packet, packet + this->packetSize);
-        if (this->currentBlock.size() >= packetBlockSize)
+        // 8-bit sync byte
+        // 1-bit TEI
+        // 1-bit PUSI
+        // 1-bit priority
+        // 13-bit PID
+        bool transportErrorIndicator = !!(packet[1] & 0x80);
+        WORD pid = ((packet[1] << 8) | packet[2]) & 0x1fff;
+        int adaptationFieldControl = (packet[3] >> 4) & 0x03;
+        if (!transportErrorIndicator && !!(adaptationFieldControl & 2))
         {
+            int adaptationLength = packet[4];
+            bool pcrFlag = !!(packet[5] & 0x10);
+            if (adaptationLength >= 6 && pcrFlag)
+            {
+                // 参照するPCRのPIDを適当に選ぶ
+                if (pid != this->pcrPID)
+                {
+                    auto it = this->pcrPIDCandidates.find(pid);
+                    if (it == this->pcrPIDCandidates.end())
+                    {
+                        it = this->pcrPIDCandidates.emplace(pid, 0).first;
+                    }
+                    // 最初に3回出現するか、参照済みPCRが現れずに5回出現したPCRを使う
+                    it->second++;
+                    if ((this->pcrPID < 0 && it->second >= 3) || it->second >= 5)
+                    {
+                        this->pcrPID = pid;
+                    }
+                }
+                if (pid == this->pcrPID)
+                {
+                    // PCRを取得する。時計演算の便利のため下位1bitは捨てる
+                    this->pcrPIDCandidates.clear();
+                    this->pcr = (static_cast<DWORD>(packet[6]) << 24) | (packet[7] << 16) | (packet[8] << 8) | packet[9];
+                }
+            }
+        }
+
+        bool acceptPacket;
+        {
+            // std::mutexの内部はSRWLock等なので頻繁に呼んでも別に気にしなくてよい
             std::lock_guard<std::mutex> lock(this->queueMutex);
-            if (this->queue.size() < this->maxQueueLength)
+            acceptPacket = this->pidsToExclude.count(pid) == 0;
+        }
+        if (acceptPacket)
+        {
+            this->currentBlock.insert(this->currentBlock.end(), packet, packet + this->packetSize);
+        }
+
+        // PCRが100ミリ秒以上進めばキューに加える
+        // キューには100*maxQueueLengthミリ秒分ほど貯められる
+        if (this->currentBlock.size() >= this->packetBlockSize ||
+            (!this->currentBlock.empty() && (this->pcr - this->lastBlockPCR) >= 45 * 100))
+        {
             {
+                std::lock_guard<std::mutex> lock(this->queueMutex);
                 this->queue.push(std::move(this->currentBlock));
-                this->currentBlock.reserve(this->packetBlockSize);
+                if (this->queue.size() > this->maxQueueLength)
+                {
+                    // 古いものを中身再利用して捨てる
+                    this->currentBlock.swap(this->queue.front());
+                    this->queue.pop();
+                }
             }
-            else
-            {
-                this->currentBlock.clear();
-            }
+            this->currentBlock.clear();
+            this->currentBlock.reserve(this->packetBlockSize);
+            this->lastBlockPCR = this->pcr;
             return true;
         }
         return false;
@@ -112,6 +170,13 @@ public:
         this->queue.pop();
         return r;
     }
+
+    // どのスレッドからも呼び出せる
+    void setPIDsToExclude(std::unordered_set<WORD> pids)
+    {
+        std::lock_guard<std::mutex> lock(this->queueMutex);
+        this->pidsToExclude.swap(pids);
+    }
 };
 
 // Plugins/TVTDataBroadcastingWV2.tvtp
@@ -130,6 +195,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
 
     std::atomic<bool> webViewLoaded;
     PacketQueue packetQueue;
+    std::vector<WCHAR> packetsToJsonBuf;
 
     HWND hRemoteWnd = nullptr;
     HWND hPanelWnd = nullptr;
@@ -148,7 +214,6 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     RECT containerRect = {};
     TVTest::ServiceInfo currentService = {};
     TVTest::ChannelInfo currentChannel = {};
-    std::unordered_set<WORD> pesPIDList;
     Status status;
     bool deferWebView = false;
     const int MAX_VOLUME = 100;
@@ -253,10 +318,6 @@ bool CDataBroadcastingWV2::GetPluginInfo(TVTest::PluginInfo* pInfo)
 BOOL CALLBACK CDataBroadcastingWV2::StreamCallback(BYTE* pData, void* pClientData)
 {
     auto pThis = (CDataBroadcastingWV2*)pClientData;
-    if (!pThis->webViewLoaded)
-    {
-        return TRUE;
-    }
     if (pThis->packetQueue.enqueuePacket(pData))
     {
         PostMessageW(pThis->hMessageWnd, WM_APP_PACKET, 0, 0);
@@ -282,9 +343,11 @@ bool CDataBroadcastingWV2::OnServiceUpdate()
     {
         return true;
     }
+    auto lastNetworkID = this->currentChannel.NetworkID;
+    auto lastServiceID = this->currentService.ServiceID;
     this->m_pApp->GetCurrentChannelInfo(&this->currentChannel);
     this->m_pApp->GetServiceInfo(serviceIndex, &this->currentService);
-    pesPIDList.clear();
+    std::unordered_set<WORD> pesPIDList;
     for (auto i = 0; i < numServices; i++)
     {
         TVTest::ServiceInfo serviceInfo = { sizeof(TVTest::ServiceInfo) };
@@ -296,6 +359,14 @@ bool CDataBroadcastingWV2::OnServiceUpdate()
                 pesPIDList.insert(serviceInfo.AudioPID[j]);
             }
         }
+    }
+    // 動画、音声のPESは不要なので削っておく
+    this->packetQueue.setPIDsToExclude(std::move(pesPIDList));
+
+    if (this->currentChannel.NetworkID != lastNetworkID ||
+        this->currentService.ServiceID != lastServiceID)
+    {
+        this->packetQueue.clear();
     }
     Tune();
     return true;
@@ -526,72 +597,47 @@ LRESULT CALLBACK CDataBroadcastingWV2::MessageWndProc(HWND hWnd, UINT uMsg, WPAR
     }
     case WM_APP_PACKET:
     {
-        while (true)
+        if (!pThis->webView || !pThis->webViewLoaded)
+        {
+            // キューを消費しない
+            break;
+        }
+        // スレッドが失速して回復したときなどに応答を維持するためメッセージごとの処理数を制限
+        for (int popCount = 0; popCount < 5; popCount++)
         {
             auto packets = pThis->packetQueue.pop();
             if (!packets)
             {
                 break;
             }
-            if (!pThis->webView)
-            {
-                continue;
-            }
-            WCHAR head[] = LR"({"type":"stream","data":[)";
-            WCHAR tail[] = LR"(]})";
-            auto packetBlockSize = pThis->packetQueue.packetBlockSize;
+            WCHAR head[] = LR"({"type":"streamBase64","data":")";
+            WCHAR tail[] = LR"("})";
+            auto packetBlockSize = packets.value().size();
             auto packetSize = pThis->packetQueue.packetSize;
-            size_t size = _countof(head) - 1 + packetBlockSize * 4 /* '255,' */ + _countof(tail) + 1;
-            std::unique_ptr<WCHAR[]> buf_ptr(new WCHAR[size]);
+            size_t size = _countof(head) - 1 + (packetBlockSize + 2) / 3 * 4 /* Base64 */ + _countof(tail) + 1;
+            if (pThis->packetsToJsonBuf.size() < size)
             {
-                auto buf = buf_ptr.get();
+                pThis->packetsToJsonBuf.resize(size);
+            }
+            {
+                auto buf = pThis->packetsToJsonBuf.data();
                 wcscpy_s(buf, size, head);
                 size_t pos = 0;
                 pos += wcslen(head);
                 auto buffer = packets.value().data();
-                for (size_t p = 0; p < packetBlockSize; p += packetSize)
+                static const WCHAR base64[66] = L"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+                for (size_t i = 0; i < packetBlockSize; i += 3)
                 {
-                    // 動画、音声のPESは不要なので削っておく
-                    // StreamCallbackで削っておきたいけどやや処理が複雑になるのでこっちで
-                    // 8-bit sync byte
-                    // 1-bit TEI
-                    // 1-bit PUSI
-                    // 1-bit priority
-                    // 13-bit PID
-                    auto pid = ((buffer[p + 1] << 8) | buffer[p + 2]) & 0x1fff;
-                    if (pThis->pesPIDList.find(pid) != pThis->pesPIDList.end())
-                    {
-                        continue;
-                    }
-                    for (size_t i = p; i < p + packetSize; i++)
-                    {
-                        // デバッグビルドだからかitowとか遅すぎて間に合わないので自前でやる
-                        if (buffer[i] < 10)
-                        {
-                            buf[pos] = L'0' + buffer[i];
-                            pos += 1;
-                        }
-                        else if (buffer[i] < 100)
-                        {
-                            buf[pos] = L'0' + (buffer[i] / 10);
-                            pos += 1;
-                            buf[pos] = L'0' + (buffer[i] % 10);
-                            pos += 1;
-                        }
-                        else
-                        {
-                            buf[pos] = L'0' + (buffer[i] / 100);
-                            pos += 1;
-                            buf[pos] = L'0' + ((buffer[i] / 10) % 10);
-                            pos += 1;
-                            buf[pos] = L'0' + (buffer[i] % 10);
-                            pos += 1;
-                        }
-                        buf[pos] = L',';
-                        pos += 1;
-                    }
+                    buf[pos] = base64[buffer[i] >> 2];
+                    pos += 1;
+                    buf[pos] = base64[((buffer[i] & 3) << 4) | (i + 1 < packetBlockSize ? buffer[i + 1] >> 4 : 0)];
+                    pos += 1;
+                    buf[pos] = base64[i + 1 < packetBlockSize ? ((buffer[i + 1] & 15) << 2) |
+                                                                (i + 2 < packetBlockSize ? buffer[i + 2] >> 6 : 0) : 64];
+                    pos += 1;
+                    buf[pos] = base64[i + 2 < packetBlockSize ? buffer[i + 2] & 63 : 64];
+                    pos += 1;
                 }
-                pos--;
                 wcscpy_s(buf + pos, size - pos, tail);
                 auto hr = pThis->webView->PostWebMessageAsJson(buf);
             }
@@ -1497,7 +1543,6 @@ void CDataBroadcastingWV2::Tune()
             if (_wcsicmp(source.get(), baseUrl.c_str()))
             {
                 this->RestoreVideoWindow();
-                this->packetQueue.clear();
                 this->webView->Navigate(baseUrl.c_str());
                 this->usedKey.basic = true;
                 this->usedKey.dataButton = true;

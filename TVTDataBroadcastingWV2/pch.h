@@ -10,6 +10,7 @@
 #include <mutex>
 #include <atomic>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <wrl.h>
 #include <wil/com.h>
