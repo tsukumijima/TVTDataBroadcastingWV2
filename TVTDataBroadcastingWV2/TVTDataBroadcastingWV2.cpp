@@ -343,6 +343,8 @@ bool CDataBroadcastingWV2::OnServiceUpdate()
     {
         return true;
     }
+    auto lastNetworkID = this->currentChannel.NetworkID;
+    auto lastServiceID = this->currentService.ServiceID;
     this->m_pApp->GetCurrentChannelInfo(&this->currentChannel);
     this->m_pApp->GetServiceInfo(serviceIndex, &this->currentService);
     std::unordered_set<WORD> pesPIDList;
@@ -361,7 +363,11 @@ bool CDataBroadcastingWV2::OnServiceUpdate()
     // 動画、音声のPESは不要なので削っておく
     this->packetQueue.setPIDsToExclude(std::move(pesPIDList));
 
-    this->packetQueue.clear();
+    if (this->currentChannel.NetworkID != lastNetworkID ||
+        this->currentService.ServiceID != lastServiceID)
+    {
+        this->packetQueue.clear();
+    }
     Tune();
     return true;
 }
