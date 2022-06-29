@@ -496,7 +496,7 @@ function onResized() {
     const scaleX = windowWidth / contentWidth;
     const scaleY = windowHeight / contentHeight;
     const s = Math.min(scaleX, scaleY);
-    document.body.style.transform = `translate(${(contentWidth * s + windowWidth) / 2 - contentWidth * s}px, ${(contentHeight * s + windowHeight) / 2 - contentHeight * s}px) scale(${s})`;
+    document.body.style.transform = `translate(${Math.ceil((contentWidth * s + windowWidth) / 2 - contentWidth * s)}px, ${Math.ceil((contentHeight * s + windowHeight) / 2 - contentHeight * s)}px) scale(${s})`;
     document.body.style.transformOrigin = `0px 0px`;
     const { left, top, right, bottom } = videoContainer.getBoundingClientRect();
     (window as any).chrome.webview.postMessage({
