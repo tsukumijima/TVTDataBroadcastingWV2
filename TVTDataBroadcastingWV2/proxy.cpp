@@ -1,4 +1,4 @@
-#include "pch.h"
+﻿#include "pch.h"
 #include "proxy.h"
 
 ProxyRequest::ProxyRequest
@@ -160,10 +160,15 @@ bool ProxyRequest::RequestAsync
     }
     for (auto&& header : headers)
     {
-        WINHTTP_EXTENDED_HEADER exHeader;
-        exHeader.pwszName = header.first;
-        exHeader.pwszValue = header.second;
-        if (WinHttpAddRequestHeadersEx(request, WINHTTP_ADDREQ_FLAG_ADD, WINHTTP_EXTENDED_HEADER_FLAG_UNICODE, 0, 1, &exHeader))
+        auto headers = std::wstring(header.first) + L": " + header.second;
+        // CRLFが含まれている不正なヘッダを除外
+        // CRLFの直後に空白かタブがあればヘッダの区切りではなくトークンの区切りとして扱われるためこの処理は正しくない
+        // ただし含めたリクエストを送る処理はないしfetchに含めることもできないし問題ない
+        if (headers.find(L'\r') != std::wstring::npos || headers.find(L'\n') != std::wstring::npos)
+        {
+            continue;
+        }
+        if (!WinHttpAddRequestHeaders(request, headers.data(), headers.size(), WINHTTP_ADDREQ_FLAG_ADD))
         {
             return false;
         }
@@ -182,7 +187,7 @@ bool ProxyRequest::RequestAsync
     {
         return false;
     }
-    // AsyncCallback����delete this�����
+    // AsyncCallback中でdelete thisされる
     preq.release();
     return true;
 }
