@@ -261,6 +261,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     void Disable(bool finalize);
     void EnablePanelButtons(bool enable);
     HRESULT Proxy(ICoreWebView2WebResourceRequestedEventArgs* args, LPCWSTR proxyUrl);
+    void UpdateNetworkToggleButton(HWND hWnd);
     void SetNetworkState(bool enable);
     void UpdateNetworkState();
     void UpdateAudioStream();
@@ -1023,7 +1024,7 @@ void CDataBroadcastingWV2::InitWebView2()
             webView3->SetVirtualHostNameToFolderMapping(L"TVTDataBroadcastingWV2.invalid", resourceDirectory.c_str(), COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW);
 
             // 仮想ホスト以外へのリクエストは全てブロックする
-            // 通信が有効になっている場合は許可する
+            // 通信が有効になっている場合は内部のプロキシへの通信のみ許可する
             webView->AddWebResourceRequestedFilter(L"*", COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL);
             this->webView->add_WebResourceRequested(Callback<ICoreWebView2WebResourceRequestedEventHandler>(
                 [this](ICoreWebView2* sender, ICoreWebView2WebResourceRequestedEventArgs* args) -> HRESULT {
@@ -1605,6 +1606,10 @@ bool CDataBroadcastingWV2::OnFullscreenChange(bool fFullscreen)
 
 void CDataBroadcastingWV2::UpdateCaptionState(bool showIndicator)
 {
+    if (!this->webView)
+    {
+        return;
+    }
     nlohmann::json msg{ { "type", "caption" }, { "enable", this->caption }, { "showIndicator", showIndicator } };
     std::stringstream ss;
     ss << msg;
@@ -1639,17 +1644,22 @@ void CDataBroadcastingWV2::SetCaptionState(bool enable)
     this->UpdateCaptionState(true);
 }
 
+void CDataBroadcastingWV2::UpdateNetworkToggleButton(HWND hWnd)
+{
+    auto label = this->enableNetwork ? L"通信機能を無効化" : L"通信機能を有効化";
+    SetDlgItemTextW(hWnd, IDC_TOGGLE_NETWORK, label);
+}
+
 void CDataBroadcastingWV2::SetNetworkState(bool enable)
 {
     this->enableNetwork = enable;
-    auto label = enable ? L"通信機能を無効化" : L"通信機能を有効化";
     if (this->hRemoteWnd)
     {
-        SetDlgItemTextW(this->hRemoteWnd, IDC_TOGGLE_NETWORK, label);
+        this->UpdateNetworkToggleButton(this->hRemoteWnd);
     }
     if (this->hPanelWnd)
     {
-        SetDlgItemTextW(this->hPanelWnd, IDC_TOGGLE_NETWORK, label);
+        this->UpdateNetworkToggleButton(this->hPanelWnd);
     }
     this->UpdateNetworkState();
 }
@@ -1710,36 +1720,52 @@ static std::unordered_map<int, CommandInfo> commandList
 
 bool CDataBroadcastingWV2::OnCommand(int ID)
 {
-    if (ID == IDC_SHOW_REMOTE_CONTROL)
+    if (this->m_pApp->IsPluginEnabled())
     {
-        if (!this->hRemoteWnd)
+        switch (ID)
         {
-            TVTest::ShowDialogInfo Info;
-
-            Info.Flags = TVTest::SHOW_DIALOG_FLAG_MODELESS;
-            Info.hinst = g_hinstDLL;
-            Info.pszTemplate = MAKEINTRESOURCE(IDD_REMOTE_CONTROL);
-            Info.pMessageFunc = RemoteControlDlgProc;
-            Info.pClientData = this;
-            Info.hwndOwner = this->m_pApp->GetAppWindow();
-
-            if ((HWND)this->m_pApp->ShowDialog(&Info) == nullptr)
-                return false;
-            ShowWindow(this->hRemoteWnd, SW_SHOW);
-        }
-        return true;
-    }
-    if (ID == IDC_KEY_SETTINGS)
-    {
-        if (this->m_pApp->GetFullscreen())
+        case IDC_SHOW_REMOTE_CONTROL:
         {
-            return this->OnPluginSettings(this->GetFullscreenWindow());
+            if (!this->hRemoteWnd)
+            {
+                TVTest::ShowDialogInfo Info;
+
+                Info.Flags = TVTest::SHOW_DIALOG_FLAG_MODELESS;
+                Info.hinst = g_hinstDLL;
+                Info.pszTemplate = MAKEINTRESOURCE(IDD_REMOTE_CONTROL);
+                Info.pMessageFunc = RemoteControlDlgProc;
+                Info.pClientData = this;
+                Info.hwndOwner = this->m_pApp->GetAppWindow();
+
+                if ((HWND)this->m_pApp->ShowDialog(&Info) == nullptr)
+                    return false;
+                ShowWindow(this->hRemoteWnd, SW_SHOW);
+            }
+            return true;
         }
-        return this->OnPluginSettings(this->m_pApp->GetAppWindow());
-    }
-    if (ID == IDC_TOGGLE_NETWORK)
-    {
-        this->SetNetworkState(!this->enableNetwork);
+        case IDC_KEY_SETTINGS:
+        {
+            if (this->m_pApp->GetFullscreen())
+            {
+                return this->OnPluginSettings(this->GetFullscreenWindow());
+            }
+            return this->OnPluginSettings(this->m_pApp->GetAppWindow());
+        }
+        case IDC_TOGGLE_NETWORK:
+        {
+            this->SetNetworkState(!this->enableNetwork);
+            return true;
+        }
+        case IDC_TOGGLE_CAPTION:
+            this->SetCaptionState(!this->caption);
+            return true;
+        case IDC_ENABLE_CAPTION:
+            this->SetCaptionState(true);
+            return true;
+        case IDC_DISABLE_CAPTION:
+            this->SetCaptionState(false);
+            return true;
+        }
     }
     if (!this->webView)
     {
@@ -1775,15 +1801,6 @@ bool CDataBroadcastingWV2::OnCommand(int ID)
         break;
     case IDC_KEY_RELOAD:
         this->webView->Reload();
-        break;
-    case IDC_TOGGLE_CAPTION:
-        this->SetCaptionState(!this->caption);
-        break;
-    case IDC_ENABLE_CAPTION:
-        this->SetCaptionState(true);
-        break;
-    case IDC_DISABLE_CAPTION:
-        this->SetCaptionState(false);
         break;
     case IDC_TASKMANAGER:
     {
@@ -1847,6 +1864,7 @@ INT_PTR CALLBACK CDataBroadcastingWV2::RemoteControlDlgProc(HWND hDlg, UINT uMsg
         if (pThis->GetIniItem(L"EnableNetwork", 0))
         {
             SetWindowLongW(GetDlgItem(hDlg, IDC_TOGGLE_NETWORK), GWL_STYLE, GetWindowLongW(GetDlgItem(hDlg, IDC_TOGGLE_NETWORK), GWL_STYLE) | WS_VISIBLE);
+            pThis->UpdateNetworkToggleButton(hDlg);
         }
         return 1;
     }
@@ -1936,6 +1954,7 @@ INT_PTR CALLBACK CDataBroadcastingWV2::PanelRemoteControlDlgProc(HWND hDlg, UINT
         if (pThis->GetIniItem(L"EnableNetwork", 0))
         {
             SetWindowLongW(GetDlgItem(hDlg, IDC_TOGGLE_NETWORK), GWL_STYLE, GetWindowLongW(GetDlgItem(hDlg, IDC_TOGGLE_NETWORK), GWL_STYLE) | WS_VISIBLE);
+            pThis->UpdateNetworkToggleButton(hDlg);
         }
         return 1;
     }
