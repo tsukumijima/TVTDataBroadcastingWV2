@@ -401,6 +401,7 @@ type ToWebViewMessage = {
     type: "mainAudioStreamChanged",
     pid?: number,
     index: number,
+    componentId?: number,
     channelId: number,
 };
 
@@ -472,10 +473,14 @@ function onWebViewMessage(data: ToWebViewMessage, reply: (data: FromWebViewMessa
     } else if (data.type === "cancelInput") {
         changeCallback = undefined;
     } else if (data.type === "mainAudioStreamChanged") {
-        const index = data.pid != null ? audioESList.findIndex(x => x.pid === data.pid) : data.index;
-        const es = audioESList[index];
-        if (es != null) {
-            bmlBrowser.setMainAudioStream(es.componentId, data.channelId);
+        if (data.componentId != null) {
+            bmlBrowser.setMainAudioStream(data.componentId, data.channelId);
+        } else {
+            const index = data.pid != null ? audioESList.findIndex(x => x.pid === data.pid) : data.index;
+            const es = audioESList[index];
+            if (es != null) {
+                bmlBrowser.setMainAudioStream(es.componentId, data.channelId);
+            }
         }
     }
 }
