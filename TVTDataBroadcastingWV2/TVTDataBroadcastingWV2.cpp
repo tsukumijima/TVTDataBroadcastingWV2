@@ -337,6 +337,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     void RestoreMainAudio();
     void SelectAudio(Audio audio);
     Audio GetSelectedAudio();
+    void ShowRemoteControlDialog();
 
     wil::com_ptr<ICoreWebView2Controller> webViewController;
     wil::com_ptr<ICoreWebView2> webView;
@@ -1543,7 +1544,7 @@ bool CDataBroadcastingWV2::OnPluginEnable(bool fEnable)
 
         if (!this->GetIniItem(L"DisableRemoteControl", 0))
         {
-            this->OnCommand(IDC_SHOW_REMOTE_CONTROL);
+            this->ShowRemoteControlDialog();
         }
         m_pApp->SetStreamCallback(0, StreamCallback, this);
         m_pApp->SetWindowMessageCallback(WindowMessageCallback, this);
@@ -1752,6 +1753,26 @@ static std::unordered_map<int, CommandInfo> commandList
     { IDC_KEY_12, { 17, UsedKeyType::NumericTuning, L"Channel12" } },
 };
 
+void CDataBroadcastingWV2::ShowRemoteControlDialog()
+{
+    if (!this->hRemoteWnd)
+    {
+        TVTest::ShowDialogInfo Info;
+
+        Info.Flags = TVTest::SHOW_DIALOG_FLAG_MODELESS;
+        Info.hinst = g_hinstDLL;
+        Info.pszTemplate = MAKEINTRESOURCE(IDD_REMOTE_CONTROL);
+        Info.pMessageFunc = RemoteControlDlgProc;
+        Info.pClientData = this;
+        Info.hwndOwner = this->m_pApp->GetAppWindow();
+
+        if ((HWND)this->m_pApp->ShowDialog(&Info) != nullptr && this->hRemoteWnd != nullptr)
+        {
+            ShowWindow(this->hRemoteWnd, SW_SHOW);
+        }
+    }
+}
+
 bool CDataBroadcastingWV2::OnCommand(int ID)
 {
     if (this->m_pApp->IsPluginEnabled())
@@ -1760,21 +1781,7 @@ bool CDataBroadcastingWV2::OnCommand(int ID)
         {
         case IDC_SHOW_REMOTE_CONTROL:
         {
-            if (!this->hRemoteWnd)
-            {
-                TVTest::ShowDialogInfo Info;
-
-                Info.Flags = TVTest::SHOW_DIALOG_FLAG_MODELESS;
-                Info.hinst = g_hinstDLL;
-                Info.pszTemplate = MAKEINTRESOURCE(IDD_REMOTE_CONTROL);
-                Info.pMessageFunc = RemoteControlDlgProc;
-                Info.pClientData = this;
-                Info.hwndOwner = this->m_pApp->GetAppWindow();
-
-                if ((HWND)this->m_pApp->ShowDialog(&Info) == nullptr)
-                    return false;
-                ShowWindow(this->hRemoteWnd, SW_SHOW);
-            }
+            this->ShowRemoteControlDialog();
             return true;
         }
         case IDC_KEY_SETTINGS:
