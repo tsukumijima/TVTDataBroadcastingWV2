@@ -21,6 +21,7 @@ using namespace Microsoft::WRL;
 #define WM_APP_RESIZE (WM_APP + 1)
 #define WM_APP_RESPONSE (WM_APP + 2)
 #define WM_APP_INPUT (WM_APP + 3)
+#define WM_APP_ENABLE_PLUGIN (WM_APP + 4)
 
 struct DeferralResponse
 {
@@ -338,6 +339,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     void SelectAudio(Audio audio);
     Audio GetSelectedAudio();
     void ShowRemoteControlDialog();
+    void CreateMessageWindow();
 
     wil::com_ptr<ICoreWebView2Controller> webViewController;
     wil::com_ptr<ICoreWebView2> webView;
@@ -571,7 +573,9 @@ bool CDataBroadcastingWV2::Initialize()
     this->useTVTestChannelCommand = this->GetIniItem(L"UseTVTestChannelCommand", true);
     if (this->GetIniItem(L"AutoEnable", 0))
     {
-        m_pApp->EnablePlugin(true);
+        // Initialize()でプラグインを有効にするかPLUGIN_FLAG_ENABLEDEFAULTだとサイドパネルのプラグインボタンが押された状態にならないので遅延する
+        this->CreateMessageWindow();
+        PostMessageW(this->hMessageWnd, WM_APP_ENABLE_PLUGIN, 0, 0);
     }
     return true;
 }
@@ -813,6 +817,9 @@ LRESULT CALLBACK CDataBroadcastingWV2::MessageWndProc(HWND hWnd, UINT uMsg, WPAR
         }
         break;
     }
+    case WM_APP_ENABLE_PLUGIN:
+        pThis->m_pApp->EnablePlugin(true);
+        return 0;
     }
     return DefWindowProcW(hWnd, uMsg, wParam, lParam);
 }
@@ -1527,21 +1534,28 @@ void CDataBroadcastingWV2::Disable(bool finalize)
     }
 }
 
+void CDataBroadcastingWV2::CreateMessageWindow()
+{
+    if (this->hMessageWnd != nullptr)
+    {
+        return;
+    }
+    WNDCLASSEXW wc = {};
+    wc.cbSize = sizeof(WNDCLASSEXW);
+    wc.lpfnWndProc = MessageWndProc;
+    wc.hInstance = g_hinstDLL;
+    wc.lpszClassName = L"TVTDataBroadcastingWV2 Message Window";
+    RegisterClassExW(&wc);
+    this->hMessageWnd = CreateWindowExW(0, L"TVTDataBroadcastingWV2 Message Window", L"TVTDataBroadcastingWV2 Message Window", 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, nullptr, nullptr);
+    SetWindowLongPtrW(this->hMessageWnd, GWLP_USERDATA, (LONG_PTR)this);
+}
+
 bool CDataBroadcastingWV2::OnPluginEnable(bool fEnable)
 {
     this->status = {};
     if (fEnable)
     {
-        WNDCLASSEXW wc = {};
-        wc.cbSize = sizeof(WNDCLASSEXW);
-        wc.lpfnWndProc = MessageWndProc;
-        wc.hInstance = g_hinstDLL;
-        wc.lpszClassName = L"TVTDataBroadcastingWV2 Message Window";
-        if (RegisterClassExW(&wc)) {
-        }
-        this->hMessageWnd = CreateWindowExW(0, L"TVTDataBroadcastingWV2 Message Window", L"TVTDataBroadcastingWV2 Message Window", 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, nullptr, nullptr);
-        SetWindowLongPtrW(this->hMessageWnd, GWLP_USERDATA, (LONG_PTR)this);
-
+        this->CreateMessageWindow();
         if (!this->GetIniItem(L"DisableRemoteControl", 0))
         {
             this->ShowRemoteControlDialog();
