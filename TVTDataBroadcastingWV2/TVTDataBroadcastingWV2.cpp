@@ -1007,7 +1007,7 @@ void CDataBroadcastingWV2::InitWebView2()
         return;
     }
     auto options = Microsoft::WRL::Make<CoreWebView2EnvironmentOptions>();
-    options->put_AdditionalBrowserArguments(L"--autoplay-policy=no-user-gesture-required --disable-features=msSmartScreenProtection");
+    options->put_AdditionalBrowserArguments(L"--autoplay-policy=no-user-gesture-required --disable-features=msSmartScreenProtection --force-device-scale-factor=1");
     auto result = CreateCoreWebView2EnvironmentWithOptions(webView2Directory, this->webView2DataDirectory.c_str(), options.Get(),
         Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
             [this, resourceDirectory](HRESULT result, ICoreWebView2Environment* env) -> HRESULT {
