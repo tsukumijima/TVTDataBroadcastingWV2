@@ -56,8 +56,8 @@ export class StatusBarIndicator implements Indicator {
 }
 
 const params = new URLSearchParams(location.search);
-const networkId = Number(params.get("networkId")) || undefined;
-const serviceId = Number(params.get("serviceId")) || undefined;
+const networkId = Number(params.get("networkId")) ?? undefined;
+const serviceId = Number(params.get("serviceId")) ?? undefined;
 
 // BML文書と動画と字幕が入る要素
 const browserElement = document.getElementById("data-broadcasting-browser")!;
