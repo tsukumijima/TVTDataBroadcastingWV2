@@ -55,6 +55,10 @@ export class StatusBarIndicator implements Indicator {
     }
 }
 
+const params = new URLSearchParams(location.search);
+const networkId = Number(params.get("networkId")) || undefined;
+const serviceId = Number(params.get("serviceId")) || undefined;
+
 // BML文書と動画と字幕が入る要素
 const browserElement = document.getElementById("data-broadcasting-browser")!;
 // 動画が入っている要素
@@ -151,6 +155,7 @@ const inputApplication: InputApplication = {
             value: opts.value,
             allowedCharacters: opts.allowedCharacters,
             inputMode: opts.inputMode,
+            multiline: opts.multiline,
         } as FromWebViewMessage);
         changeCallback = opts.callback;
     },
@@ -278,6 +283,7 @@ type FromWebViewMessage = {
     maxLength: number,
     value: string,
     inputMode: "text" | "password",
+    multiline: boolean,
 } | {
     type: "changeAudioStream",
     componentId: number,
@@ -291,6 +297,11 @@ type FromWebViewMessage = {
     pid: number,
     index: number,
     channelId?: number,
+} | {
+    type: "serviceInfo",
+    networkId: number,
+    serviceId: number,
+    cProfile: boolean,
 };
 
 bmlBrowser.addEventListener("videochanged", (evt) => {
@@ -341,6 +352,11 @@ const audioStreamType = new Set([
 
 let audioESList: ComponentPMT[] = [];
 
+let pmtRetrieved = false;
+// ワンセグのデータ放送の場合dボタンを押すまで起動しない状態にしておく
+let cProfile = false;
+let oneSegLaunched = false;
+
 function onMessage(msg: ResponseMessage) {
     if (msg.type === "pes") {
         player.push(msg.streamId, Uint8Array.from(msg.data), msg.pts);
@@ -348,13 +364,33 @@ function onMessage(msg: ResponseMessage) {
         pcr = (msg.pcrBase + msg.pcrExtension / 300) / 90;
     } else if (msg.type === "pmt") {
         audioESList = msg.components.filter(x => audioStreamType.has(x.streamType)).sort((a, b) => a.componentId - b.componentId);
+        if (!pmtRetrieved) {
+            // 地上デジタル放送向けマルチメディア符号化方式(Cプロファイル) 0x000d
+            cProfile = msg.components.some(x => x.dataComponentId === 0x000d);
+            if (cProfile) {
+                // loadが呼ばれる前はまだ960pxが設定されていてデータ取得中の表示が小さくなってしまうので変えておく
+                browserElement.style.width = "240px";
+                browserElement.style.height = "480px";
+                onResized();
+                if (!oneSegLaunched) {
+                    browserElement.style.visibility = "hidden";
+                }
+            }
+            (window as any).chrome.webview.postMessage({
+                type: "serviceInfo",
+                networkId,
+                serviceId,
+                cProfile,
+            } as FromWebViewMessage);
+        }
+        pmtRetrieved = true;
     }
     bmlBrowser.emitMessage(msg);
 }
 
 const tsStream = decodeTS({
     sendCallback: onMessage,
-    serviceId: Number(new URL(location.href).searchParams.get("serviceId")) || undefined,
+    serviceId,
     parsePES: true,
 });
 
@@ -403,10 +439,15 @@ type ToWebViewMessage = {
     index: number,
     componentId?: number,
     channelId: number,
+} | {
+    type: "launchOneSeg",
 };
 
 function onWebViewMessage(data: ToWebViewMessage, reply: (data: FromWebViewMessage) => void) {
     if (data.type === "stream") {
+        if (!oneSegLaunched && cProfile) {
+            return;
+        }
         const ts = data.data;
         const prevPCR = pcr;
         tsStream.parse(Buffer.from(ts));
@@ -415,6 +456,9 @@ function onWebViewMessage(data: ToWebViewMessage, reply: (data: FromWebViewMessa
             player.updateTime(curPCR - 450);
         }
     } else if (data.type === "streamBase64") {
+        if (!oneSegLaunched && cProfile) {
+            return;
+        }
         const ts = data.data;
         const prevPCR = pcr;
         tsStream.parse(Buffer.from(ts, "base64"));
@@ -482,6 +526,9 @@ function onWebViewMessage(data: ToWebViewMessage, reply: (data: FromWebViewMessa
                 bmlBrowser.setMainAudioStream(es.componentId, data.channelId);
             }
         }
+    } else if (data.type === "launchOneSeg") {
+        oneSegLaunched = true;
+        browserElement.style.visibility = "visible";
     }
 }
 

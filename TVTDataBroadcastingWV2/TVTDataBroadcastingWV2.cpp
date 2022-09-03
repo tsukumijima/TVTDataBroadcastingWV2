@@ -10,6 +10,7 @@
 #include "NVRAMSettingsDialog.h"
 #include "proxy.h"
 #include "InputDialog.h"
+#include "OneSeg.h"
 
 using namespace Microsoft::WRL;
 
@@ -275,6 +276,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     HWND hViewWnd = nullptr;
     HWND hContainerWnd = nullptr;
     HWND hMessageWnd = nullptr;
+    HWND hOneSegWnd = nullptr;
     HBRUSH hbrPanelBack = nullptr;
     HFONT hPanelFont = nullptr;
     wil::com_ptr<IBasicVideo> basicVideo;
@@ -284,6 +286,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     RECT videoRect = {};
     RECT containerRect = {};
     TVTest::ServiceInfo currentService = {};
+    bool currentServiceIsOneSeg = false;
     TVTest::ChannelInfo currentChannel = {};
     Status status;
     bool deferWebView = false;
@@ -299,6 +302,8 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     std::unique_ptr<InputDialog> inputDialog;
     Audio mainAudio;
     bool isPlayingMainAudio = true;
+    std::unique_ptr<OneSegWindow> oneSegWindow;
+    bool oneSegWindowIsShown;
     virtual bool OnChannelChange();
     virtual bool OnServiceChange();
     virtual bool OnServiceUpdate();
@@ -340,6 +345,8 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     Audio GetSelectedAudio();
     void ShowRemoteControlDialog();
     void CreateMessageWindow();
+    void CreateOneSegWindow();
+    void DestroyOneSegWindow();
 
     wil::com_ptr<ICoreWebView2Controller> webViewController;
     wil::com_ptr<ICoreWebView2> webView;
@@ -441,6 +448,7 @@ bool CDataBroadcastingWV2::OnServiceUpdate()
     if (this->currentChannel.NetworkID != lastNetworkID ||
         this->currentService.ServiceID != lastServiceID)
     {
+        this->currentServiceIsOneSeg = false;
         this->packetQueue.clear();
     }
     Tune();
@@ -607,7 +615,7 @@ LRESULT CALLBACK CDataBroadcastingWV2::MessageWndProc(HWND hWnd, UINT uMsg, WPAR
         }
         case IDT_RESIZE:
         {
-            if (pThis->webViewController)
+            if (pThis->webViewController && !pThis->oneSegWindowIsShown)
             {
                 // FIXME: Fullscreen
                 // Containerウィンドウが非表示になった場合Viewウィンドウを親にする
@@ -648,7 +656,7 @@ LRESULT CALLBACK CDataBroadcastingWV2::MessageWndProc(HWND hWnd, UINT uMsg, WPAR
     }
     case WM_APP_RESIZE:
     {
-        if (pThis->webViewController)
+        if (pThis->webViewController && !pThis->oneSegWindowIsShown)
         {
 #if 0
             if (pThis->hVideoWnd)
@@ -1303,6 +1311,20 @@ void CDataBroadcastingWV2::InitWebView2()
                             this->SelectAudio(audio);
                         }
                     }
+                    else if (type == "serviceInfo")
+                    {
+                        auto cProfile = a["cProfile"].get<bool>();
+                        auto serviceId = a["serviceId"].get<int>();
+                        auto networkId = a["networkId"].get<int>();
+                        if (this->currentService.ServiceID == serviceId && this->currentChannel.NetworkID == networkId)
+                        {
+                            this->currentServiceIsOneSeg = cProfile;
+                            if (!cProfile)
+                            {
+                                this->DestroyOneSegWindow();
+                            }
+                        }
+                    }
                 }
                 return S_OK;
             }).Get(), &token);
@@ -1317,6 +1339,10 @@ void CDataBroadcastingWV2::InitWebView2()
                 }
                 this->UpdateAudioStream();
                 this->webViewLoaded = true;
+                if (this->oneSegWindowIsShown)
+                {
+                    this->webView->PostWebMessageAsJson(LR"({"type":"launchOneSeg"})");
+                }
                 return S_OK;
             }).Get(), &token);
             this->Tune();
@@ -1445,7 +1471,7 @@ HRESULT CDataBroadcastingWV2::Proxy(ICoreWebView2WebResourceRequestedEventArgs* 
 
 void CDataBroadcastingWV2::ResizeVideoWindow()
 {
-    if (this->invisible)
+    if (this->invisible || this->oneSegWindowIsShown)
     {
         this->RestoreVideoWindow();
     }
@@ -1491,6 +1517,7 @@ void CDataBroadcastingWV2::Disable(bool finalize)
     {
         m_pApp->SetWindowMessageCallback(nullptr, this);
     }
+    this->oneSegWindow = nullptr;
     if (this->hRemoteWnd)
     {
         auto hWnd = this->hRemoteWnd;
@@ -1592,6 +1619,7 @@ void CDataBroadcastingWV2::Tune()
             baseUrl += std::to_wstring(this->currentChannel.NetworkID);
             if (_wcsicmp(source.get(), baseUrl.c_str()))
             {
+                this->oneSegWindow = nullptr;
                 this->RestoreVideoWindow();
                 this->webView->Navigate(baseUrl.c_str());
                 this->usedKey.basic = true;
@@ -1849,7 +1877,15 @@ bool CDataBroadcastingWV2::OnCommand(int ID)
     {
     case IDC_KEY_D_OR_ENABLE_PLUGIN:
     case IDC_KEY_D:
-        this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":20})");
+        if (this->currentServiceIsOneSeg)
+        {
+            this->CreateOneSegWindow();
+            this->webView->PostWebMessageAsJson(LR"({"type":"launchOneSeg"})");
+        }
+        else
+        {
+            this->webView->PostWebMessageAsJson(LR"({"type":"key","keyCode":20})");
+        }
         break;
     case IDC_KEY_DEVTOOL:
         this->webView->OpenDevToolsWindow();
@@ -2304,6 +2340,38 @@ Audio CDataBroadcastingWV2::GetSelectedAudio()
     }
     auto index = this->m_pApp->GetAudioStream();
     return Audio(index);
+}
+
+void CDataBroadcastingWV2::CreateOneSegWindow()
+{
+    if (this->hOneSegWnd != nullptr)
+    {
+        return;
+    }
+    this->oneSegWindowIsShown = true;
+    this->oneSegWindow = std::make_unique<OneSegWindow>(
+        this->m_pApp->GetAppWindow(),
+        g_hinstDLL,
+        this->hContainerWnd,
+        this->webViewController,
+        [this]()
+        {
+            this->oneSegWindowIsShown = false;
+            this->webViewController->put_ParentWindow(this->hContainerWnd);
+            PostMessageW(this->hMessageWnd, WM_APP_RESIZE, 0, 0);
+            this->hOneSegWnd = nullptr;
+            if (this->currentServiceIsOneSeg)
+            {
+                this->webView->Reload();
+            }
+        }
+    );
+    this->hOneSegWnd = this->oneSegWindow->GetWindowHandle();
+}
+
+void CDataBroadcastingWV2::DestroyOneSegWindow()
+{
+    this->oneSegWindow = nullptr;
 }
 
 TVTest::CTVTestPlugin* CreatePluginClass()
