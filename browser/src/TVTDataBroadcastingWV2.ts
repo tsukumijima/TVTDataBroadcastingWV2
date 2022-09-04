@@ -170,6 +170,36 @@ const inputApplication: InputApplication = {
     },
 };
 
+function X_DPA_startResidentApp(appName: string, showAV: number, returnURI: string, Ex_info: string[]): number {
+    if (appName === "ComBrowser") {
+        const uri = Ex_info[0];
+        const mode = Ex_info[1];
+        const fullscreen = Ex_info[2] === "1";
+        if (!uri.startsWith("http://") && !uri.startsWith("https://")) {
+            return NaN;
+        }
+        if (mode === "0") {
+            // 0: 本規定に準じたコンテンツを表示可能なブラウザ
+            // 非リンクコンテンツへと遷移 (TR-B14 第三分冊 図8-9)
+            return NaN;
+        }
+        // 1: 通信事業者仕様ブラウザ
+        // 2: HTMLブラウザ
+        // fullscreenが1ならば原則としてデータ放送ブラウザの表示を終了する
+        (window as any).chrome.webview.postMessage({
+            type: "startBrowser",
+            uri,
+            fullscreen,
+        } as FromWebViewMessage);
+        // データ放送ブラウザは，当該拡張関数を実行後，引き続きスクリプトの実行を継続することが望ましい
+        // TR-B14 第三分冊 7.10.8
+        return 1;
+    } else if (appName === "BookmarkList") {
+        return NaN;
+    }
+    return NaN;
+}
+
 const bmlBrowser = new BMLBrowser({
     containerElement: contentElement,
     mediaElement: videoContainer,
@@ -210,7 +240,8 @@ const bmlBrowser = new BMLBrowser({
             channelId,
         } as FromWebViewMessage);
         return true;
-    }
+    },
+    X_DPA_startResidentApp,
 });
 
 // trueであればデータ放送の上に動画を表示させる非表示状態
@@ -302,6 +333,10 @@ type FromWebViewMessage = {
     networkId: number,
     serviceId: number,
     cProfile: boolean,
+} | {
+    type: "startBrowser",
+    uri: string,
+    fullscreen: boolean,
 };
 
 bmlBrowser.addEventListener("videochanged", (evt) => {

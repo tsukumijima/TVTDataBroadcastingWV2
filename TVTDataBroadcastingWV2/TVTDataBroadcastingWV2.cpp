@@ -11,6 +11,7 @@
 #include "proxy.h"
 #include "InputDialog.h"
 #include "OneSeg.h"
+#include <shellapi.h>
 
 using namespace Microsoft::WRL;
 
@@ -1324,6 +1325,20 @@ void CDataBroadcastingWV2::InitWebView2()
                             {
                                 this->DestroyOneSegWindow();
                             }
+                        }
+                    }
+                    else if (type == "startBrowser")
+                    {
+                        auto uri = a["uri"].get<std::string>();
+                        auto fullscreen = a["fullscreen"].get<bool>();
+                        if (uri.starts_with("http://") || uri.starts_with("https://"))
+                        {
+                            if (fullscreen)
+                            {
+                                this->DestroyOneSegWindow();
+                            }
+                            auto wuri = utf8StrToWString(uri.c_str());
+                            ShellExecuteW(nullptr, L"open", wuri.c_str(), nullptr, nullptr, SW_SHOW);
                         }
                     }
                 }
