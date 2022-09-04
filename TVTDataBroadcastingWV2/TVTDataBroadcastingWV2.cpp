@@ -320,6 +320,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     virtual bool OnAudioStreamChange(int Stream);
     virtual bool OnStereoModeChange(int StereoMode);
     virtual void OnAudioFormatChange();
+    virtual void OnDarkModeChanged(bool fDarkMode);
 
     HWND GetFullscreenWindow();
     void RestoreVideoWindow();
@@ -2367,11 +2368,20 @@ void CDataBroadcastingWV2::CreateOneSegWindow()
         }
     );
     this->hOneSegWnd = this->oneSegWindow->GetWindowHandle();
+    this->OnDarkModeChanged(this->m_pApp->GetDarkModeStatus() & TVTest::DARK_MODE_STATUS_DIALOG_DARK);
 }
 
 void CDataBroadcastingWV2::DestroyOneSegWindow()
 {
     this->oneSegWindow = nullptr;
+}
+
+void CDataBroadcastingWV2::OnDarkModeChanged(bool fDarkMode)
+{
+    if (this->hOneSegWnd != nullptr)
+    {
+        this->m_pApp->SetWindowDarkMode(this->hOneSegWnd, this->m_pApp->GetDarkModeStatus() & TVTest::DARK_MODE_STATUS_DIALOG_DARK);
+    }
 }
 
 TVTest::CTVTestPlugin* CreatePluginClass()
