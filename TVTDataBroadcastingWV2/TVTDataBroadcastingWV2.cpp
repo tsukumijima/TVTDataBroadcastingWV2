@@ -1841,9 +1841,9 @@ static std::unordered_map<int, CommandInfo> oneSegCommandList
     { IDC_KEY_7, { 12, UsedKeyType::NumericTuning, L"Channel7" } },
     { IDC_KEY_8, { 13, UsedKeyType::NumericTuning, L"Channel8" } },
     { IDC_KEY_9, { 14, UsedKeyType::NumericTuning, L"Channel9" } },
-    { IDC_KEY_10, { 15, UsedKeyType::Special1, L"Channel10" } },
-    { IDC_KEY_11, { 16, UsedKeyType::Special1, L"Channel11" } },
-    { IDC_KEY_12, { 17, UsedKeyType::Unused, L"Channel12" } },
+    { IDC_KEY_10, { 101, UsedKeyType::Special1, L"Channel10" } },
+    { IDC_KEY_11, { 16, UsedKeyType::Unused, L"Channel11" } },
+    { IDC_KEY_12, { 102, UsedKeyType::Special1, L"Channel12" } },
 };
 
 void CDataBroadcastingWV2::ShowRemoteControlDialog()
@@ -2446,16 +2446,16 @@ void CDataBroadcastingWV2::UpdateDigitButton()
     if (this->oneSegWindowIsShown)
     {
         SetDlgItemTextW(this->hRemoteWnd, IDC_KEY_10, L"＊/10");
-        SetDlgItemTextW(this->hRemoteWnd, IDC_KEY_11, L"＃/11");
+        SetDlgItemTextW(this->hRemoteWnd, IDC_KEY_12, L"＃/12");
         SetDlgItemTextW(this->hPanelWnd, IDC_KEY_10, L"＊/10");
-        SetDlgItemTextW(this->hPanelWnd, IDC_KEY_11, L"＃/11");
+        SetDlgItemTextW(this->hPanelWnd, IDC_KEY_12, L"＃/12");
     }
     else
     {
         SetDlgItemTextW(this->hRemoteWnd, IDC_KEY_10, L"10");
-        SetDlgItemTextW(this->hRemoteWnd, IDC_KEY_11, L"11");
+        SetDlgItemTextW(this->hRemoteWnd, IDC_KEY_12, L"12");
         SetDlgItemTextW(this->hPanelWnd, IDC_KEY_10, L"10");
-        SetDlgItemTextW(this->hPanelWnd, IDC_KEY_11, L"11");
+        SetDlgItemTextW(this->hPanelWnd, IDC_KEY_12, L"12");
     }
 }
 
