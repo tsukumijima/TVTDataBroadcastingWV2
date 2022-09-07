@@ -43,6 +43,8 @@ struct UsedKey
     bool basic;
     bool dataButton;
     bool numericTuning;
+    bool special1;
+    bool special2;
 };
 
 struct Status
@@ -349,6 +351,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     void CreateMessageWindow();
     void CreateOneSegWindow();
     void DestroyOneSegWindow();
+    void UpdateDigitButton();
 
     wil::com_ptr<ICoreWebView2Controller> webViewController;
     wil::com_ptr<ICoreWebView2> webView;
@@ -1227,6 +1230,8 @@ void CDataBroadcastingWV2::InitWebView2()
                             usedKey.basic = usedKeyList["basic"].is_boolean();
                             usedKey.dataButton = usedKeyList["data-button"].is_boolean();
                             usedKey.numericTuning = usedKeyList["numeric-tuning"].is_boolean();
+                            usedKey.special1 = usedKeyList["special-1"].is_boolean();
+                            usedKey.special2 = usedKeyList["special-2"].is_boolean();
                             this->usedKey = usedKey;
                         }
                     }
@@ -1777,9 +1782,11 @@ void CDataBroadcastingWV2::UpdateNetworkState()
 
 enum class UsedKeyType
 {
+    Unused,
     Basic,
     DataButton,
     NumericTuning,
+    Special1,
 };
 
 struct CommandInfo
@@ -1814,6 +1821,29 @@ static std::unordered_map<int, CommandInfo> commandList
     { IDC_KEY_10, { 15, UsedKeyType::NumericTuning, L"Channel10" } },
     { IDC_KEY_11, { 16, UsedKeyType::NumericTuning, L"Channel11" } },
     { IDC_KEY_12, { 17, UsedKeyType::NumericTuning, L"Channel12" } },
+};
+
+static std::unordered_map<int, CommandInfo> oneSegCommandList
+{
+    { IDC_KEY_UP, { 1, UsedKeyType::Basic } },
+    { IDC_KEY_DOWN, { 2, UsedKeyType::Basic } },
+    { IDC_KEY_LEFT, { 3, UsedKeyType::Basic } },
+    { IDC_KEY_RIGHT, { 4, UsedKeyType::Basic } },
+    { IDC_KEY_ENTER, { 18, UsedKeyType::Basic } },
+    { IDC_KEY_BACK, { 19, UsedKeyType::Basic } },
+    { IDC_KEY_0, { 5, UsedKeyType::NumericTuning } },
+    { IDC_KEY_1, { 6, UsedKeyType::NumericTuning, L"Channel1" } },
+    { IDC_KEY_2, { 7, UsedKeyType::NumericTuning, L"Channel2" } },
+    { IDC_KEY_3, { 8, UsedKeyType::NumericTuning, L"Channel3" } },
+    { IDC_KEY_4, { 9, UsedKeyType::NumericTuning, L"Channel4" } },
+    { IDC_KEY_5, { 10, UsedKeyType::NumericTuning, L"Channel5" } },
+    { IDC_KEY_6, { 11, UsedKeyType::NumericTuning, L"Channel6" } },
+    { IDC_KEY_7, { 12, UsedKeyType::NumericTuning, L"Channel7" } },
+    { IDC_KEY_8, { 13, UsedKeyType::NumericTuning, L"Channel8" } },
+    { IDC_KEY_9, { 14, UsedKeyType::NumericTuning, L"Channel9" } },
+    { IDC_KEY_10, { 15, UsedKeyType::Special1, L"Channel10" } },
+    { IDC_KEY_11, { 16, UsedKeyType::Special1, L"Channel11" } },
+    { IDC_KEY_12, { 17, UsedKeyType::Unused, L"Channel12" } },
 };
 
 void CDataBroadcastingWV2::ShowRemoteControlDialog()
@@ -1925,8 +1955,9 @@ bool CDataBroadcastingWV2::OnCommand(int ID)
     }
     default:
     {
-        auto command = commandList.find(ID);
-        if (command != commandList.end())
+        auto&& list = this->oneSegWindowIsShown ? oneSegCommandList : commandList;
+        auto command = list.find(ID);
+        if (command != list.end())
         {
             bool post = false;
             switch (command->second.usedKeyType)
@@ -1939,6 +1970,9 @@ bool CDataBroadcastingWV2::OnCommand(int ID)
                 break;
             case UsedKeyType::NumericTuning:
                 post = this->usedKey.numericTuning;
+                break;
+            case UsedKeyType::Special1:
+                post = this->usedKey.special1;
                 break;
             }
             if (post)
@@ -1978,6 +2012,7 @@ INT_PTR CALLBACK CDataBroadcastingWV2::RemoteControlDlgProc(HWND hDlg, UINT uMsg
             SetWindowLongW(GetDlgItem(hDlg, IDC_TOGGLE_NETWORK), GWL_STYLE, GetWindowLongW(GetDlgItem(hDlg, IDC_TOGGLE_NETWORK), GWL_STYLE) | WS_VISIBLE);
             pThis->UpdateNetworkToggleButton(hDlg);
         }
+        pThis->UpdateDigitButton();
         return 1;
     }
     case WM_COMMAND:
@@ -2385,10 +2420,12 @@ void CDataBroadcastingWV2::CreateOneSegWindow()
             {
                 this->webView->Reload();
             }
+            this->UpdateDigitButton();
         }
     );
     this->hOneSegWnd = this->oneSegWindow->GetWindowHandle();
     this->OnDarkModeChanged(this->m_pApp->GetDarkModeStatus() & TVTest::DARK_MODE_STATUS_DIALOG_DARK);
+    this->UpdateDigitButton();
 }
 
 void CDataBroadcastingWV2::DestroyOneSegWindow()
@@ -2401,6 +2438,24 @@ void CDataBroadcastingWV2::OnDarkModeChanged(bool fDarkMode)
     if (this->hOneSegWnd != nullptr)
     {
         this->m_pApp->SetWindowDarkMode(this->hOneSegWnd, this->m_pApp->GetDarkModeStatus() & TVTest::DARK_MODE_STATUS_DIALOG_DARK);
+    }
+}
+
+void CDataBroadcastingWV2::UpdateDigitButton()
+{
+    if (this->oneSegWindowIsShown)
+    {
+        SetDlgItemTextW(this->hRemoteWnd, IDC_KEY_10, L"＊/10");
+        SetDlgItemTextW(this->hRemoteWnd, IDC_KEY_11, L"＃/11");
+        SetDlgItemTextW(this->hPanelWnd, IDC_KEY_10, L"＊/10");
+        SetDlgItemTextW(this->hPanelWnd, IDC_KEY_11, L"＃/11");
+    }
+    else
+    {
+        SetDlgItemTextW(this->hRemoteWnd, IDC_KEY_10, L"10");
+        SetDlgItemTextW(this->hRemoteWnd, IDC_KEY_11, L"11");
+        SetDlgItemTextW(this->hPanelWnd, IDC_KEY_10, L"10");
+        SetDlgItemTextW(this->hPanelWnd, IDC_KEY_11, L"11");
     }
 }
 
