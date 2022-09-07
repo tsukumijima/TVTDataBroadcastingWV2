@@ -1034,7 +1034,7 @@ void CDataBroadcastingWV2::InitWebView2()
         {
             this->m_pApp->AddLog((std::wstring(L"WebView2 version: ") + ver.get()).c_str(), TVTest::LOG_TYPE_INFORMATION);
         }
-        env->CreateCoreWebView2Controller(this->hContainerWnd, Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
+        env->CreateCoreWebView2Controller(this->hMessageWnd, Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
             [env, this, resourceDirectory](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
             if (FAILED(result))
             {
@@ -1048,11 +1048,8 @@ void CDataBroadcastingWV2::InitWebView2()
                 this->webViewController = controller;
                 this->webViewController->get_CoreWebView2(this->webView.put());
             }
-            auto hWebViewWnd = FindWindowExW(this->hContainerWnd, nullptr, L"Chrome_WidgetWin_0", nullptr);
+            auto hWebViewWnd = FindWindowExW(this->hMessageWnd, nullptr, nullptr, nullptr);
             this->hWebViewWnd = hWebViewWnd;
-            // 動画ウィンドウといい感じに合成させるために必要 (Windows 8以降じゃないと動かないはず)
-            SetWindowLongW(hWebViewWnd, GWL_EXSTYLE, GetWindowLongW(hWebViewWnd, GWL_EXSTYLE) | WS_EX_LAYERED | WS_EX_TRANSPARENT);
-            SetWindowPos(hWebViewWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
             // ICoreWebView2_3, ICoreWebView2Controller2: 1.0.774.44
             auto controller2 = this->webViewController.try_query<ICoreWebView2Controller2>();
             if (!controller2)
@@ -1070,9 +1067,11 @@ void CDataBroadcastingWV2::InitWebView2()
             settings->put_AreDefaultScriptDialogsEnabled(TRUE);
             settings->put_IsWebMessageEnabled(TRUE);
 
+            this->webViewController->put_ParentWindow(this->hContainerWnd);
             RECT bounds;
             GetClientRect(this->hContainerWnd, &bounds);
             this->webViewController->put_Bounds(bounds);
+            SetWindowPos(hWebViewWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 
             EventRegistrationToken token;
             auto webView3 = this->webView.query<ICoreWebView2_3>();
@@ -1347,6 +1346,12 @@ void CDataBroadcastingWV2::InitWebView2()
 
             this->webView->add_NavigationCompleted(Callback<ICoreWebView2NavigationCompletedEventHandler>(
                 [this](ICoreWebView2* sender, ICoreWebView2NavigationCompletedEventArgs* args) -> HRESULT {
+                if (!this->webViewLoaded)
+                {
+                    // 動画ウィンドウといい感じに合成させるために必要 (Windows 8以降じゃないと動かないはず)
+                    SetWindowLongW(this->hWebViewWnd, GWL_EXSTYLE, GetWindowLongW(this->hWebViewWnd, GWL_EXSTYLE) | WS_EX_LAYERED | WS_EX_TRANSPARENT);
+                    this->webViewController->put_IsVisible(true);
+                }
                 this->UpdateCaptionState(false);
                 this->UpdateVolume();
                 if (this->proxySession)
