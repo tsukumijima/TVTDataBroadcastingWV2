@@ -1020,7 +1020,13 @@ void CDataBroadcastingWV2::InitWebView2()
         return;
     }
     auto options = Microsoft::WRL::Make<CoreWebView2EnvironmentOptions>();
-    options->put_AdditionalBrowserArguments(L"--autoplay-policy=no-user-gesture-required --disable-features=msSmartScreenProtection --force-device-scale-factor=1");
+    options->put_AdditionalBrowserArguments(
+        L"--autoplay-policy=no-user-gesture-required "
+        L"--disable-features=msSmartScreenProtection "
+        // IWebView2Controller3::put_RasterizationScaleに1.0を指定すればいいはずだけどリサイズがうまくいかなかったり挙動が謎なのでコマンドラインを使う
+        // 副作用として開発者ツールやタスクマネージャーのウィンドウ枠含めたスケーリングが100%固定になる
+        L"--force-device-scale-factor=1"
+    );
     auto result = CreateCoreWebView2EnvironmentWithOptions(webView2Directory, this->webView2DataDirectory.c_str(), options.Get(),
         Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
             [this, resourceDirectory](HRESULT result, ICoreWebView2Environment* env) -> HRESULT {
@@ -1337,10 +1343,12 @@ void CDataBroadcastingWV2::InitWebView2()
                         auto fullscreen = a["fullscreen"].get<bool>();
                         if (uri.starts_with("http://") || uri.starts_with("https://"))
                         {
+#if 0
                             if (fullscreen)
                             {
                                 this->DestroyOneSegWindow();
                             }
+#endif
                             auto wuri = utf8StrToWString(uri.c_str());
                             ShellExecuteW(nullptr, L"open", wuri.c_str(), nullptr, nullptr, SW_SHOW);
                         }
