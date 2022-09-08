@@ -3,6 +3,10 @@ import { BMLBrowser, BMLBrowserFontFace, EPG, Indicator, IP, InputApplication, I
 import { decodeTS } from "../web-bml/server/decode_ts";
 import { CaptionPlayer } from "../web-bml/client/player/caption_player";
 
+function postMessage(message: FromWebViewMessage): void {
+    (window as any).chrome.webview.postMessage(message);
+}
+
 export class StatusBarIndicator implements Indicator {
     private readonly receivingStatusElement: HTMLElement;
     private readonly networkingStatusElement: HTMLElement;
@@ -16,12 +20,12 @@ export class StatusBarIndicator implements Indicator {
     loading = false;
     networkingPost = false;
     private update() {
-        (window as any).chrome.webview.postMessage({
+        postMessage({
             type: "status",
             loading: this.loading,
             url: this.url,
             receiving: this.receiving,
-        } as FromWebViewMessage);
+        });
         if (this.receiving) {
             this.receivingStatusElement.style.display = "";
         } else {
@@ -84,12 +88,12 @@ const ccStatusAnimation = ccStatus.animate([{ visibility: "hidden", offset: 1 }]
 const epg: EPG = {
     tune(originalNetworkId, transportStreamId, serviceId) {
         console.error("tune", originalNetworkId, transportStreamId, serviceId);
-        (window as any).chrome.webview.postMessage({
+        postMessage({
             type: "tune",
             originalNetworkId,
             transportStreamId,
             serviceId,
-        } as FromWebViewMessage);
+        });
         return true;
     }
 };
@@ -148,7 +152,7 @@ const inputApplication: InputApplication = {
         if (changeCallback != null) {
             this.cancel("other");
         }
-        (window as any).chrome.webview.postMessage({
+        postMessage({
             type: "input",
             characterType: opts.characterType,
             maxLength: opts.maxLength,
@@ -156,16 +160,16 @@ const inputApplication: InputApplication = {
             allowedCharacters: opts.allowedCharacters,
             inputMode: opts.inputMode,
             multiline: opts.multiline,
-        } as FromWebViewMessage);
+        });
         changeCallback = opts.callback;
     },
     cancel(reason) {
         if (changeCallback != null) {
             changeCallback = undefined;
-            (window as any).chrome.webview.postMessage({
+            postMessage({
                 type: "cancelInput",
                 reason,
-            } as FromWebViewMessage);
+            });
         }
     },
 };
@@ -186,11 +190,11 @@ function X_DPA_startResidentApp(appName: string, showAV: number, returnURI: stri
         // 1: 通信事業者仕様ブラウザ
         // 2: HTMLブラウザ
         // fullscreenが1ならば原則としてデータ放送ブラウザの表示を終了する
-        (window as any).chrome.webview.postMessage({
+        postMessage({
             type: "startBrowser",
             uri,
             fullscreen,
-        } as FromWebViewMessage);
+        });
         // データ放送ブラウザは，当該拡張関数を実行後，引き続きスクリプトの実行を継続することが望ましい
         // TR-B14 第三分冊 7.10.8
         return 1;
@@ -232,13 +236,13 @@ const bmlBrowser = new BMLBrowser({
         if (es == null) {
             return false;
         }
-        (window as any).chrome.webview.postMessage({
+        postMessage({
             type: "changeMainAudioStream",
             componentId,
             index,
             pid: es.pid,
             channelId,
-        } as FromWebViewMessage);
+        });
         return true;
     },
     X_DPA_startResidentApp,
@@ -252,10 +256,10 @@ bmlBrowser.addEventListener("invisible", (evt) => {
     } else {
         contentElement.style.clipPath = "";
     }
-    (window as any).chrome.webview.postMessage({
+    postMessage({
         type: "invisible",
         invisible: evt.detail,
-    } as FromWebViewMessage);
+    });
 });
 
 bmlBrowser.addEventListener("load", (evt) => {
@@ -341,34 +345,34 @@ type FromWebViewMessage = {
 
 bmlBrowser.addEventListener("videochanged", (evt) => {
     const { left, top, right, bottom } = evt.detail.boundingRect;
-    (window as any).chrome.webview.postMessage({
+    postMessage({
         type: "videoChanged",
         left: left * window.devicePixelRatio,
         top: top * window.devicePixelRatio,
         right: right * window.devicePixelRatio,
         bottom: bottom * window.devicePixelRatio,
         invisible: bmlBrowser.content.invisible ?? true,
-    } as FromWebViewMessage);
+    });
 });
 
 bmlBrowser.addEventListener("usedkeylistchanged", (evt) => {
     const { usedKeyList } = evt.detail;
-    (window as any).chrome.webview.postMessage({
+    postMessage({
         type: "usedKeyList",
         usedKeyList: Object.fromEntries([...usedKeyList.values()].map(x => [x, true])),
-    } as FromWebViewMessage);
+    });
 });
 
 bmlBrowser.addEventListener("audiostreamchanged", (evt) => {
     const { componentId, channelId } = evt.detail;
     const index = audioESList.findIndex(x => x.componentId === componentId);
-    (window as any).chrome.webview.postMessage({
+    postMessage({
         type: "changeAudioStream",
         componentId,
         index,
         pid: audioESList[index]?.pid,
         channelId,
-    } as FromWebViewMessage);
+    });
 });
 
 let pcr: number | undefined;
@@ -411,12 +415,12 @@ function onMessage(msg: ResponseMessage) {
                     browserElement.style.visibility = "hidden";
                 }
             }
-            (window as any).chrome.webview.postMessage({
+            postMessage({
                 type: "serviceInfo",
                 networkId,
                 serviceId,
                 cProfile,
-            } as FromWebViewMessage);
+            });
         }
         pmtRetrieved = true;
     }
@@ -586,14 +590,14 @@ function onResized() {
     document.body.style.transform = `translate(${Math.ceil((contentWidth * s + windowWidth) / 2 - contentWidth * s)}px, ${Math.ceil((contentHeight * s + windowHeight) / 2 - contentHeight * s)}px) scale(${s})`;
     document.body.style.transformOrigin = `0px 0px`;
     const { left, top, right, bottom } = videoContainer.getBoundingClientRect();
-    (window as any).chrome.webview.postMessage({
+    postMessage({
         type: "videoChanged",
         left: left * window.devicePixelRatio,
         top: top * window.devicePixelRatio,
         right: right * window.devicePixelRatio,
         bottom: bottom * window.devicePixelRatio,
         invisible: bmlBrowser.content.invisible ?? true,
-    } as FromWebViewMessage);
+    });
 }
 
 window.addEventListener("resize", onResized);
