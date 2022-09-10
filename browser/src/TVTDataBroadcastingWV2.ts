@@ -78,6 +78,9 @@ const player = new CaptionPlayer(document.createElement("video"), ccContainer);
 // リモコン
 const remoteControl = new StatusBarIndicator(browserElement.querySelector(".remote-control-receiving-status")!, browserElement.querySelector(".remote-control-networking-status")!);
 
+const remoteControlStatusContainer = document.querySelector(".remote-control-status-container") as HTMLElement;
+remoteControlStatusContainer.style.visibility = "hidden";
+
 const ccStatus = document.getElementById("cc-status")!;
 
 const ccStatusAnimation = ccStatus.animate([{ visibility: "hidden", offset: 1 }], {
@@ -506,6 +509,7 @@ function onWebViewMessage(data: ToWebViewMessage, reply: (data: FromWebViewMessa
             player.updateTime(curPCR - 450);
         }
     } else if (data.type === "key") {
+        remoteControlStatusContainer.style.visibility = "visible";
         bmlBrowser.content.processKeyDown(data.keyCode);
         bmlBrowser.content.processKeyUp(data.keyCode);
     } else if (data.type === "caption") {
