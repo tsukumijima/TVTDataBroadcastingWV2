@@ -3,8 +3,20 @@ import { BMLBrowser, BMLBrowserFontFace, EPG, Indicator, IP, InputApplication, I
 import { decodeTS } from "../web-bml/server/decode_ts";
 import { CaptionPlayer } from "../web-bml/client/player/caption_player";
 
+declare global {
+    interface Window {
+        chrome: {
+            webview: {
+                postMessage(msg: any): any;
+                addEventListener(type: string, listener: EventListenerOrEventListenerObject): void;
+            }
+        };
+        sendMessage?(data: ToWebViewMessage): FromWebViewMessage | null;
+        bmlBrowser?: BMLBrowser;
+    }
+}
 function postMessage(message: FromWebViewMessage): void {
-    (window as any).chrome.webview.postMessage(message);
+    window.chrome.webview.postMessage(message);
 }
 
 export class StatusBarIndicator implements Indicator {
@@ -575,9 +587,9 @@ function onWebViewMessage(data: ToWebViewMessage, reply: (data: FromWebViewMessa
     }
 }
 
-(window as any).chrome.webview.addEventListener("message", (ev: any) => onWebViewMessage(ev.data as ToWebViewMessage, (window as any).chrome.webview.postMessage));
+window.chrome.webview.addEventListener("message", (ev: any) => onWebViewMessage(ev.data as ToWebViewMessage, (window as any).chrome.webview.postMessage));
 
-(window as any).sendMessage = (data: ToWebViewMessage): FromWebViewMessage | null => {
+window.sendMessage = (data: ToWebViewMessage): FromWebViewMessage | null => {
     let result: FromWebViewMessage | null = null;
     onWebViewMessage(data, (data) => result = data);
     return result;
@@ -607,3 +619,5 @@ function onResized() {
 window.addEventListener("resize", onResized);
 
 onResized();
+
+window.bmlBrowser = bmlBrowser;
