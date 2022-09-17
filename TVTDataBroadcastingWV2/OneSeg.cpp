@@ -281,7 +281,7 @@ OneSegWindow::OneSegWindow(HWND appWindow, HINSTANCE hInstance, HWND hWebView2Co
         width = ncWidth + clientWidth;
         height = ncHeight + clientHeight;
     }
-    auto oneSegWnd = CreateWindowExW(exStyle, wc.lpszClassName, L"ﾜﾝｾｸﾞ ﾃﾞｰﾀ放送", style, windowX, windowY, width, height, NULL, oneSegMenu, hInstance, nullptr);
+    auto oneSegWnd = CreateWindowExW(exStyle, wc.lpszClassName, L"ﾜﾝｾｸﾞ ﾃﾞｰﾀ放送", style, windowX, windowY, width, height, appWindow, oneSegMenu, hInstance, nullptr);
     ShowWindow(oneSegWnd, SW_SHOW);
     this->hWnd = oneSegWnd;
     dpi = GetDpi(oneSegWnd);
