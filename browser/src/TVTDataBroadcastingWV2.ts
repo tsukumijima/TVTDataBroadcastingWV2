@@ -263,6 +263,10 @@ const bmlBrowser = new BMLBrowser({
     X_DPA_startResidentApp,
 });
 
+function isFullScreenVideo(): boolean {
+    return videoContainer.clientWidth === videoContainer.clientWidth && videoContainer.clientHeight === videoContainer.clientHeight;
+}
+
 // trueであればデータ放送の上に動画を表示させる非表示状態
 bmlBrowser.addEventListener("invisible", (evt) => {
     console.log("invisible", evt.detail);
@@ -273,7 +277,7 @@ bmlBrowser.addEventListener("invisible", (evt) => {
     }
     postMessage({
         type: "invisible",
-        invisible: evt.detail,
+        invisible: evt.detail || isFullScreenVideo(),
     });
 });
 
@@ -366,7 +370,7 @@ bmlBrowser.addEventListener("videochanged", (evt) => {
         top: top * window.devicePixelRatio,
         right: right * window.devicePixelRatio,
         bottom: bottom * window.devicePixelRatio,
-        invisible: bmlBrowser.content.invisible ?? true,
+        invisible: (bmlBrowser.content.invisible ?? true) || isFullScreenVideo(),
     });
 });
 
@@ -612,7 +616,7 @@ function onResized() {
         top: top * window.devicePixelRatio,
         right: right * window.devicePixelRatio,
         bottom: bottom * window.devicePixelRatio,
-        invisible: bmlBrowser.content.invisible ?? true,
+        invisible: (bmlBrowser.content.invisible ?? true) || isFullScreenVideo(),
     });
 }
 
