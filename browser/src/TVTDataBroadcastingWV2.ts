@@ -114,16 +114,17 @@ const epg: EPG = {
 };
 
 let networkEnabled = false;
+let isRecord = false;
 
 const apiIP: IP = {
     getConnectionType() {
         return 403;
     },
     isIPConnected() {
-        return networkEnabled ? 1 : 0;
+        return (networkEnabled && !isRecord) ? 1 : 0;
     },
     async transmitTextDataOverIP(uri, body) {
-        if (!networkEnabled) {
+        if (!(networkEnabled && !isRecord)) {
             return { resultCode: NaN, statusCode: "", response: new Uint8Array() };
         }
         try {
@@ -140,7 +141,7 @@ const apiIP: IP = {
         }
     },
     async get(uri) {
-        if (!networkEnabled) {
+        if (!(networkEnabled && !isRecord)) {
             return {};
         }
         try {
@@ -442,6 +443,8 @@ function onMessage(msg: ResponseMessage) {
             });
         }
         pmtRetrieved = true;
+    } else if (msg.type === "currentTime") {
+        isRecord = new Date().getTime() - msg.timeUnixMillis >= 5 * 60 * 1000;
     }
     bmlBrowser.emitMessage(msg);
 }
