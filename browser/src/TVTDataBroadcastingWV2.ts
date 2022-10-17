@@ -264,7 +264,7 @@ const bmlBrowser = new BMLBrowser({
 });
 
 function isFullScreenVideo(): boolean {
-    return videoContainer.clientWidth === videoContainer.clientWidth && videoContainer.clientHeight === videoContainer.clientHeight;
+    return videoContainer.clientWidth === browserElement.clientWidth && videoContainer.clientHeight === browserElement.clientHeight;
 }
 
 // trueであればデータ放送の上に動画を表示させる非表示状態
