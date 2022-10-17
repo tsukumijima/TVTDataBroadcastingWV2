@@ -434,6 +434,7 @@ function onMessage(msg: ResponseMessage) {
                 if (!oneSegLaunched) {
                     browserElement.style.visibility = "hidden";
                 }
+                remoteControlStatusContainer.style.visibility = "visible";
             }
             postMessage({
                 type: "serviceInfo",
@@ -504,7 +505,15 @@ type ToWebViewMessage = {
     type: "launchOneSeg",
 };
 
+// 1分間無操作であればデータ取得中の表示を消す
+let remoteControlStatusTimeoutMillis = 60 * 1000;
+let remoteControlStatusTimeout = Number.MAX_VALUE;
+
 function onWebViewMessage(data: ToWebViewMessage, reply: (data: FromWebViewMessage) => void) {
+    if (!cProfile && data.type !== "key" && performance.now() >= remoteControlStatusTimeout) {
+        remoteControlStatusContainer.style.visibility = "hidden";
+        remoteControlStatusTimeout = Number.MAX_VALUE;
+    }
     if (data.type === "stream") {
         if (!oneSegLaunched && cProfile) {
             return;
@@ -531,6 +540,7 @@ function onWebViewMessage(data: ToWebViewMessage, reply: (data: FromWebViewMessa
         remoteControlStatusContainer.style.visibility = "visible";
         bmlBrowser.content.processKeyDown(data.keyCode);
         bmlBrowser.content.processKeyUp(data.keyCode);
+        remoteControlStatusTimeout = performance.now() + remoteControlStatusTimeoutMillis;
     } else if (data.type === "caption") {
         if (data.enable) {
             if (data.showIndicator) {
