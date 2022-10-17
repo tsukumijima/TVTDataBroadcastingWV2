@@ -433,17 +433,46 @@ bool CDataBroadcastingWV2::OnServiceUpdate()
     auto lastNetworkID = this->currentChannel.NetworkID;
     auto lastServiceID = this->currentService.ServiceID;
     this->m_pApp->GetCurrentChannelInfo(&this->currentChannel);
-    this->m_pApp->GetServiceInfo(serviceIndex, &this->currentService);
+    // 過去のTVTestには音声ストリームが4より多く含まれていた場合範囲外アクセスが発生する問題があったので適当なパディングを入れる
+    struct
+    {
+        TVTest::ServiceInfo serviceInfo;
+        WORD padding[128];
+    } currentService = {};
+    this->m_pApp->GetServiceInfo(serviceIndex, &currentService.serviceInfo);
+    this->currentService = currentService.serviceInfo;
     std::unordered_set<WORD> pesPIDList;
     for (auto i = 0; i < numServices; i++)
     {
-        TVTest::ServiceInfo serviceInfo = { sizeof(TVTest::ServiceInfo) };
-        if (this->m_pApp->GetServiceInfo(i, &serviceInfo))
+        struct
         {
-            pesPIDList.insert(serviceInfo.VideoPID);
-            for (auto j = 0; j < serviceInfo.NumAudioPIDs; j++)
+            TVTest::ServiceInfo serviceInfo;
+            WORD padding[128];
+        } serviceInfo = {};
+        if (this->m_pApp->GetServiceInfo(i, &serviceInfo.serviceInfo))
+        {
+            TVTest::ElementaryStreamInfoList videoESList = {};
+            TVTest::ElementaryStreamInfoList audioESList = {};
+            if (this->m_pApp->GetElementaryStreamInfoList(&videoESList, TVTest::ES_MEDIA_VIDEO, serviceInfo.serviceInfo.ServiceID))
             {
-                pesPIDList.insert(serviceInfo.AudioPID[j]);
+                for (auto i = 0; i < videoESList.ESCount; i++)
+                {
+                    pesPIDList.insert(videoESList.ESList[i].PID);
+                }
+                this->m_pApp->MemoryFree(videoESList.ESList);
+            }
+            if (this->m_pApp->GetElementaryStreamInfoList(&audioESList, TVTest::ES_MEDIA_AUDIO, serviceInfo.serviceInfo.ServiceID))
+            {
+                for (auto i = 0; i < audioESList.ESCount; i++)
+                {
+                    pesPIDList.insert(audioESList.ESList[i].PID);
+                }
+                this->m_pApp->MemoryFree(audioESList.ESList);
+            }
+            pesPIDList.insert(serviceInfo.serviceInfo.VideoPID);
+            for (auto j = 0; j < serviceInfo.serviceInfo.NumAudioPIDs && j < _countof(serviceInfo.serviceInfo.AudioPID); j++)
+            {
+                pesPIDList.insert(serviceInfo.serviceInfo.AudioPID[j]);
             }
         }
     }
@@ -1428,8 +1457,8 @@ HRESULT CDataBroadcastingWV2::Proxy(ICoreWebView2WebResourceRequestedEventArgs* 
         auto size = statstg.cbSize.QuadPart;
         if (SUCCEEDED(hr) && size <= std::numeric_limits<ULONG>::max())
         {
-            contentBuffer.resize(size);
-            content->Read(contentBuffer.data(), size, &contentSize);
+            contentBuffer.resize((ULONG)size);
+            content->Read(contentBuffer.data(), (ULONG)size, &contentSize);
             contentBuffer.resize(contentSize);
         }
     }
