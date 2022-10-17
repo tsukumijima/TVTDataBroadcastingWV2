@@ -24,8 +24,11 @@ void CALLBACK ProxyRequest::StaticAsyncCallback(HINTERNET hInternet, DWORD_PTR d
 
 void ProxyRequest::Fail()
 {
-    errorCallback();
-    Close();
+    if (errorCallback)
+    {
+        std::exchange(errorCallback, nullptr)();
+        Close();
+    }
 }
 
 void ProxyRequest::AsyncCallback(HINTERNET hInternet, DWORD dwInternetStatus, LPVOID lpvStatusInformation, DWORD dwStatusInformationLength)
