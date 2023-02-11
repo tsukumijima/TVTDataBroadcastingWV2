@@ -25,6 +25,10 @@ using namespace Microsoft::WRL;
 #define WM_APP_INPUT (WM_APP + 3)
 #define WM_APP_ENABLE_PLUGIN (WM_APP + 4)
 
+// サイドパネル向けメッセージ
+#define WM_APP_ON_PANEL_COLOR_CHANGE (WM_APP + 0)
+#define WM_APP_ON_PANEL_SIZE (WM_APP + 1)
+
 struct DeferralResponse
 {
     wil::com_ptr<ICoreWebView2Deferral> deferral;
@@ -283,6 +287,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     HBRUSH hbrPanelBack = nullptr;
     HBRUSH hbrBRGYBacks[4] = {};
     HFONT hPanelFont = nullptr;
+    std::vector<std::pair<HWND, RECT>> panelItems;
     wil::com_ptr<IBasicVideo> basicVideo;
     wil::com_ptr<IBaseFilter> vmr7Renderer;
     wil::com_ptr<IBaseFilter> vmr9Renderer;
@@ -548,7 +553,6 @@ bool CDataBroadcastingWV2::SetIniItem(const wchar_t* key, const wchar_t* data)
 
 bool CDataBroadcastingWV2::Initialize()
 {
-    this->hbrPanelBack = CreateSolidBrush(this->m_pApp->GetColor(L"PanelBack"));
     auto filename = wil::GetModuleFileNameW<std::wstring>(g_hinstDLL);
     std::filesystem::path path(filename);
     path.replace_extension();
@@ -1615,8 +1619,11 @@ void CDataBroadcastingWV2::Disable(bool finalize)
         auto hWnd = this->hPanelWnd;
         this->hPanelWnd = nullptr;
         DestroyWindow(hWnd);
-        DeleteObject(this->hbrPanelBack);
-        this->hbrPanelBack = nullptr;
+        if (this->hbrPanelBack)
+        {
+            DeleteObject(this->hbrPanelBack);
+            this->hbrPanelBack = nullptr;
+        }
         for (size_t i = 0; i < _countof(this->hbrBRGYBacks); i++)
         {
             if (this->hbrBRGYBacks[i])
@@ -2167,6 +2174,18 @@ INT_PTR CALLBACK CDataBroadcastingWV2::PanelRemoteControlDlgProc(HWND hDlg, UINT
             SetWindowLongW(GetDlgItem(hDlg, IDC_TOGGLE_NETWORK), GWL_STYLE, GetWindowLongW(GetDlgItem(hDlg, IDC_TOGGLE_NETWORK), GWL_STYLE) | WS_VISIBLE);
             pThis->UpdateNetworkToggleButton(hDlg);
         }
+        // アイテムの初期位置を記録
+        pThis->panelItems.clear();
+        EnumChildWindows(hDlg, [](HWND hWnd, LPARAM lParam) -> BOOL {
+            RECT rect;
+            if (GetWindowRect(hWnd, &rect))
+            {
+                ((std::vector<std::pair<HWND, RECT>>*)lParam)->emplace_back(hWnd, rect);
+            }
+            return true;
+        }, (LPARAM)&pThis->panelItems);
+        SendMessageW(hDlg, WM_APP_ON_PANEL_COLOR_CHANGE, 0, 0);
+        SendMessageW(hDlg, WM_APP_ON_PANEL_SIZE, 0, 0);
         return 1;
     }
     case WM_CTLCOLORBTN:
@@ -2176,6 +2195,64 @@ INT_PTR CALLBACK CDataBroadcastingWV2::PanelRemoteControlDlgProc(HWND hDlg, UINT
     {
         pThis->hPanelWnd = nullptr;
         return 1;
+    }
+    case WM_SIZE:
+    {
+        SendMessageW(hDlg, WM_APP_ON_PANEL_SIZE, 0, 0);
+        break;
+    }
+    case WM_APP_ON_PANEL_COLOR_CHANGE:
+    {
+        COLORREF crBack = pThis->m_pApp->GetColor(L"PanelBack");
+        if (pThis->hbrPanelBack)
+        {
+            DeleteObject(pThis->hbrPanelBack);
+        }
+        pThis->hbrPanelBack = CreateSolidBrush(crBack);
+        if (pThis->m_pApp->GetDarkModeStatus() & TVTest::DARK_MODE_STATUS_PANEL_SUPPORTED)
+        {
+            // 必要に応じてボタンをダークモードにする
+            bool dark = pThis->m_pApp->IsDarkModeColor(crBack);
+            pThis->m_pApp->SetWindowDarkMode(hDlg, dark);
+            for (const auto& item : pThis->panelItems)
+            {
+                WCHAR className[100];
+                if (GetClassNameW(item.first, className, _countof(className)) && !_wcsicmp(className, L"BUTTON"))
+                {
+                    pThis->m_pApp->SetWindowDarkMode(item.first, dark);
+                }
+            }
+        }
+        InvalidateRect(hDlg, nullptr, TRUE);
+        return 0;
+    }
+    case WM_APP_ON_PANEL_SIZE:
+    {
+        RECT clientRect;
+        if (!pThis->panelItems.empty() && GetClientRect(hDlg, &clientRect))
+        {
+            // アイテムの縦方向が領域に収まらないときは縮める
+            RECT unionRect = pThis->panelItems.front().second;
+            for (const auto& item : pThis->panelItems)
+            {
+                if (GetWindowLongW(item.first, GWL_STYLE) & WS_VISIBLE)
+                {
+                    RECT rect = unionRect;
+                    UnionRect(&unionRect, &rect, &item.second);
+                }
+            }
+            double scaleY = (double)clientRect.bottom / (unionRect.bottom - unionRect.top);
+            scaleY = scaleY < 0.6 ? 0.6 : scaleY < 1 ? scaleY : 1;
+            for (const auto& item : pThis->panelItems)
+            {
+                int x = item.second.left - unionRect.left;
+                int y = (int)((item.second.top - unionRect.top) * scaleY);
+                int width = item.second.right - item.second.left;
+                int height = (int)((item.second.bottom - unionRect.top) * scaleY) - y;
+                MoveWindow(item.first, x, y, width, height, TRUE);
+            }
+        }
+        return 0;
     }
     }
     return RemoteControlDlgProc(hDlg, uMsg, wParam, lParam, pClientData);
@@ -2297,10 +2374,9 @@ bool CDataBroadcastingWV2::OnPluginSettings(HWND hwndOwner)
 
 bool CDataBroadcastingWV2::OnColorChange()
 {
-    if (this->hbrPanelBack)
+    if (this->hPanelWnd)
     {
-        DeleteObject(this->hbrPanelBack);
-        this->hbrPanelBack = CreateSolidBrush(this->m_pApp->GetColor(L"PanelBack"));
+        SendMessageW(this->hPanelWnd, WM_APP_ON_PANEL_COLOR_CHANGE, 0, 0);
     }
     return true;
 }
@@ -2320,7 +2396,18 @@ bool CDataBroadcastingWV2::OnPanelItemNotify(TVTest::PanelItemEventInfo* pInfo)
         Info.pMessageFunc = PanelRemoteControlDlgProc;
         Info.pClientData = this;
         Info.hwndOwner = createEventInfo->hwndParent;
-        auto hWnd = (HWND)this->m_pApp->ShowDialog(&Info);
+        // できればこのようにしたいが、親がダイアログでない限りWS_CHILDなダイアログはうまくダークモードにならない
+        // auto hWnd = (HWND)this->m_pApp->ShowDialog(&Info);
+        // 本体側のダークモード関連の処理と競合するため素のダイアログを使う
+        HWND hWnd = CreateDialogParamW(Info.hinst, Info.pszTemplate, Info.hwndOwner,
+                                       [](HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) -> INT_PTR {
+            if (uMsg == WM_INITDIALOG)
+            {
+                SetWindowLongPtrW(hDlg, GWLP_USERDATA, lParam);
+            }
+            auto pClientData = (void*)GetWindowLongPtrW(hDlg, GWLP_USERDATA);
+            return pClientData ? PanelRemoteControlDlgProc(hDlg, uMsg, wParam, lParam, pClientData) : 0;
+        }, (LPARAM)Info.pClientData);
         ShowWindow(hWnd, SW_SHOW);
         createEventInfo->hwndItem = hWnd;
         this->EnablePanelButtons(this->m_pApp->IsPluginEnabled());
