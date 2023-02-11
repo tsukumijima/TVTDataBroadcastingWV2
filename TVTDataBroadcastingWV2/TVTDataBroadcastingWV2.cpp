@@ -281,6 +281,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     HWND hMessageWnd = nullptr;
     HWND hOneSegWnd = nullptr;
     HBRUSH hbrPanelBack = nullptr;
+    HBRUSH hbrBRGYBacks[4] = {};
     HFONT hPanelFont = nullptr;
     wil::com_ptr<IBasicVideo> basicVideo;
     wil::com_ptr<IBaseFilter> vmr7Renderer;
@@ -1616,6 +1617,14 @@ void CDataBroadcastingWV2::Disable(bool finalize)
         DestroyWindow(hWnd);
         DeleteObject(this->hbrPanelBack);
         this->hbrPanelBack = nullptr;
+        for (size_t i = 0; i < _countof(this->hbrBRGYBacks); i++)
+        {
+            if (this->hbrBRGYBacks[i])
+            {
+                DeleteObject(this->hbrBRGYBacks[i]);
+                this->hbrBRGYBacks[i] = nullptr;
+            }
+        }
         if (this->hPanelFont)
         {
             DeleteObject(this->hPanelFont);
@@ -2070,6 +2079,24 @@ INT_PTR CALLBACK CDataBroadcastingWV2::RemoteControlDlgProc(HWND hDlg, UINT uMsg
             pThis->OnCommand(LOWORD(wParam));
         }
         return 1;
+    }
+    case WM_CTLCOLORSTATIC:
+    {
+        static const COLORREF crBRGY[4] = { RGB(0, 114, 214), RGB(201, 0, 0), RGB(27, 135, 0), RGB(227, 178, 0) };
+        int id = GetDlgCtrlID((HWND)lParam);
+        int i = id == IDC_STATIC_BLUE ? 0 : id == IDC_STATIC_RED ? 1 :
+                id == IDC_STATIC_GREEN ? 2 : id == IDC_STATIC_YELLOW ? 3 : -1;
+        if (i >= 0)
+        {
+            // スタティックコントロールの背景色を変える
+            SetBkColor((HDC)wParam, crBRGY[i]);
+            if (!pThis->hbrBRGYBacks[i])
+            {
+                pThis->hbrBRGYBacks[i] = CreateSolidBrush(crBRGY[i]);
+            }
+            return (INT_PTR)pThis->hbrBRGYBacks[i];
+        }
+        break;
     }
     case WM_CLOSE:
     {
