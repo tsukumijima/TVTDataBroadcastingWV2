@@ -20,7 +20,8 @@ static UINT GetDpi()
     return dpiY;
 }
 
-static UINT GetDpi(HWND hWnd)
+// TODO: 別翻訳単位に
+UINT GetDpi(HWND hWnd)
 {
     if (pGetDpiForWindow)
     {

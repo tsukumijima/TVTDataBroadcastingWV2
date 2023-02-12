@@ -287,6 +287,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     HBRUSH hbrPanelBack = nullptr;
     HBRUSH hbrBRGYBacks[4] = {};
     HFONT hPanelFont = nullptr;
+    UINT panelInitialDpi;
     std::vector<std::pair<HWND, RECT>> panelItems;
     wil::com_ptr<IBasicVideo> basicVideo;
     wil::com_ptr<IBaseFilter> vmr7Renderer;
@@ -358,6 +359,7 @@ class CDataBroadcastingWV2 : public TVTest::CTVTestPlugin, TVTest::CTVTestEventH
     void CreateOneSegWindow();
     void DestroyOneSegWindow();
     void UpdateDigitButton();
+    void SetPanelFont();
 
     wil::com_ptr<ICoreWebView2Controller> webViewController;
     wil::com_ptr<ICoreWebView2> webView;
@@ -2174,6 +2176,7 @@ INT_PTR CALLBACK CDataBroadcastingWV2::PanelRemoteControlDlgProc(HWND hDlg, UINT
             SetWindowLongW(GetDlgItem(hDlg, IDC_TOGGLE_NETWORK), GWL_STYLE, GetWindowLongW(GetDlgItem(hDlg, IDC_TOGGLE_NETWORK), GWL_STYLE) | WS_VISIBLE);
             pThis->UpdateNetworkToggleButton(hDlg);
         }
+        pThis->panelInitialDpi = GetDpi(hDlg);
         // アイテムの初期位置を記録
         pThis->panelItems.clear();
         EnumChildWindows(hDlg, [](HWND hWnd, LPARAM lParam) -> BOOL {
@@ -2241,7 +2244,9 @@ INT_PTR CALLBACK CDataBroadcastingWV2::PanelRemoteControlDlgProc(HWND hDlg, UINT
                     UnionRect(&unionRect, &rect, &item.second);
                 }
             }
-            double scaleY = (double)clientRect.bottom / (unionRect.bottom - unionRect.top);
+            UINT dpi = GetDpi(hDlg);
+            double scaleY = (double)clientRect.bottom / MulDiv(unionRect.bottom - unionRect.top, dpi, pThis->panelInitialDpi);
+            HDWP hDwp = BeginDeferWindowPos(pThis->panelItems.size());
             scaleY = scaleY < 0.6 ? 0.6 : scaleY < 1 ? scaleY : 1;
             for (const auto& item : pThis->panelItems)
             {
@@ -2249,9 +2254,16 @@ INT_PTR CALLBACK CDataBroadcastingWV2::PanelRemoteControlDlgProc(HWND hDlg, UINT
                 int y = (int)((item.second.top - unionRect.top) * scaleY);
                 int width = item.second.right - item.second.left;
                 int height = (int)((item.second.bottom - unionRect.top) * scaleY) - y;
-                MoveWindow(item.first, x, y, width, height, TRUE);
+                hDwp = DeferWindowPos(hDwp, item.first, nullptr, MulDiv(x, dpi, pThis->panelInitialDpi), MulDiv(y, dpi, pThis->panelInitialDpi), MulDiv(width, dpi, pThis->panelInitialDpi), MulDiv(height, dpi, pThis->panelInitialDpi), SWP_NOZORDER | SWP_NOACTIVATE);
             }
+            EndDeferWindowPos(hDwp);
         }
+        return 0;
+    }
+    case WM_DPICHANGED:
+    {
+        pThis->SetPanelFont();
+        SendMessageW(hDlg, WM_APP_ON_PANEL_SIZE, 0, 0);
         return 0;
     }
     }
@@ -2415,25 +2427,30 @@ bool CDataBroadcastingWV2::OnPanelItemNotify(TVTest::PanelItemEventInfo* pInfo)
     [[fallthrough]];
     case TVTest::PANEL_ITEM_EVENT_FONTCHANGED:
     {
-        // フォントが大きすぎるとはみ出してしまうのでフォントの大きさに合わせてボタンの大きさを変更すべきではある
-        // TVTestがやっているように全部自前で描画して処理するのは大変なのでダイアログで妥協
-        if (this->hPanelFont)
-        {
-            DeleteObject(this->hPanelFont);
-        }
-        LOGFONTW lf;
-        m_pApp->GetFont(L"PanelFont", &lf);
-        this->hPanelFont = CreateFontIndirectW(&lf);
-        SendMessageW(this->hPanelWnd, WM_SETFONT, (WPARAM)this->hPanelFont, true);
-        EnumChildWindows(this->hPanelWnd, [](HWND hWnd, LPARAM lParam) -> BOOL {
-            auto hFont = (HFONT)lParam;
-            SendMessageW(hWnd, WM_SETFONT, (WPARAM)hFont, 0);
-            return true;
-        }, (LPARAM)this->hPanelFont);
+        this->SetPanelFont();
         break;
     }
     }
     return true;
+}
+
+void CDataBroadcastingWV2::SetPanelFont()
+{
+    // フォントが大きすぎるとはみ出してしまうのでフォントの大きさに合わせてボタンの大きさを変更すべきではある
+    // TVTestがやっているように全部自前で描画して処理するのは大変なのでダイアログで妥協
+    if (this->hPanelFont)
+    {
+        DeleteObject(this->hPanelFont);
+    }
+    LOGFONTW lf;
+    this->m_pApp->GetFont(L"PanelFont", &lf, GetDpi(this->hPanelWnd));
+    this->hPanelFont = CreateFontIndirectW(&lf);
+    SendMessageW(this->hPanelWnd, WM_SETFONT, (WPARAM)this->hPanelFont, true);
+    EnumChildWindows(this->hPanelWnd, [](HWND hWnd, LPARAM lParam) -> BOOL {
+        auto hFont = (HFONT)lParam;
+        SendMessageW(hWnd, WM_SETFONT, (WPARAM)hFont, 0);
+        return true;
+    }, (LPARAM)this->hPanelFont);
 }
 
 bool CDataBroadcastingWV2::OnVolumeChange(int Volume, bool fMute)

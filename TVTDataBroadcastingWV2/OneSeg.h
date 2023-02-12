@@ -17,3 +17,5 @@ public:
     OneSegWindow(const OneSegWindow&) = delete;
     OneSegWindow& operator=(const OneSegWindow&) = delete;
 };
+
+UINT GetDpi(HWND hWnd);
