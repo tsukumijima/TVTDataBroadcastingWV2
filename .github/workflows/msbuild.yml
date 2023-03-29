@@ -40,8 +40,8 @@ jobs:
           $t=[System.DateTimeOffset]::Now.ToOffset([System.TimeSpan]::FromHours(9)).ToString("yyyy-MM-dd-HH-mm-ss")
           $sha=$env:GIT_SHA.Substring(0, 12)
           $dir="TVTDataBroadcastingWV2-$t-$sha-$env:ARCH"
-          Write-Output "::set-output name=DIR_NAME::$dir"
-          Write-Output "::set-output name=VERSION::$t-$sha-$env:ARCH"
+          Write-Output "DIR_NAME=$dir" >> $env:GITHUB_OUTPUT
+          Write-Output "VERSION=$t-$sha-$env:ARCH" >> $env:GITHUB_OUTPUT
 
     - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v1.1
