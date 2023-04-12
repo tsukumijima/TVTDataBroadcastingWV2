@@ -401,7 +401,7 @@ bool CDataBroadcastingWV2::GetPluginInfo(TVTest::PluginInfo* pInfo)
     pInfo->Type = TVTest::PLUGIN_TYPE_NORMAL;
     pInfo->Flags = TVTest::PLUGIN_FLAG_DISABLEONSTART | TVTest::PLUGIN_FLAG_HASSETTINGS;
     pInfo->pszPluginName = L"TVTDataBroadcastingWV2";
-    pInfo->pszCopyright = L"2022 otya";
+    pInfo->pszCopyright = L"2022-2023 otya";
 #ifdef TVTDATABROADCASTINGWV2_VERSION
     pInfo->pszDescription = L"データ放送を表示" TVTDATABROADCASTINGWV2_VERSION;
 #else
@@ -1670,6 +1670,10 @@ bool CDataBroadcastingWV2::OnPluginEnable(bool fEnable)
         }
         m_pApp->SetStreamCallback(0, StreamCallback, this);
         m_pApp->SetWindowMessageCallback(WindowMessageCallback, this);
+        if (this->useTVTestVolume)
+        {
+            this->OnVolumeChange(this->m_pApp->GetVolume(), this->m_pApp->GetMute());
+        }
         InitWebView2();
         SetTimer(this->hMessageWnd, IDT_RESIZE, 1000, nullptr);
         this->EnablePanelButtons(true);
