@@ -70,10 +70,6 @@ jobs:
       working-directory: ./browser/
       run: yarn install
 
-    - name: Build depends
-      working-directory: ./browser/
-      run: yarn workspace @chinachu/aribts build
-
     - name: Build web-bml
       working-directory: ./browser/
       run: yarn run build

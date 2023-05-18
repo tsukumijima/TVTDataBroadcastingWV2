@@ -1,18 +1,20 @@
 {
   "name": "tvtest-databroadcasting-webview2",
   "version": "1.0.0",
+  "private": true,
   "license": "MIT",
   "dependencies": {
-    "aribb24.js": "^1.10.9",
+    "@tsukumijima/aribts": "github:tsukumijima/node-aribts#v1.4.0",
+    "aribb24.js": "^1.11.0",
     "assert": "^2.0.0",
     "browserify-zlib": "^0.2.0",
     "buffer": "^6.0.3",
     "crc-32": "^1.2.2",
-    "css": "git+https://github.com/otya128/reworkcss-css.git#b29fc79faf40c8164b20a74ca818c28fab19cf71",
-    "fast-xml-parser": "^4.0.11",
+    "css": "github:otya128/reworkcss-css#b29fc79faf40c8164b20a74ca818c28fab19cf71",
+    "fast-xml-parser": "^4.2.2",
     "process": "^0.11.10",
     "stream-browserify": "^3.0.0",
-    "util": "^0.12.4"
+    "util": "^0.12.5"
   },
   "scripts": {
     "watch": "webpack --mode=development -w",
@@ -20,14 +22,10 @@
   },
   "devDependencies": {
     "@types/css": "^0.0.33",
-    "@types/node": "^18.11.0",
-    "ts-loader": "^9.4.1",
-    "typescript": "^4.8.4",
-    "webpack": "^5.74.0",
+    "@types/node": "^18.16.12",
+    "ts-loader": "^9.4.2",
+    "typescript": "^4.9.5",
+    "webpack": "^5.83.1",
     "webpack-cli": "^4.10.0"
-  },
-  "private": true,
-  "workspaces": [
-    "./web-bml/node-aribts"
-  ]
+  }
 }
