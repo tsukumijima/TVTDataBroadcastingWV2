@@ -71,9 +71,9 @@ private:
     DWORD pcr = 0;
     DWORD lastBlockPCR = 0;
 public:
-    const size_t packetSize = 188;
-    const size_t packetBlockSize = packetSize * 500;
-    const size_t maxQueueLength = 100;
+    static constexpr size_t packetSize = 188;
+    static constexpr size_t packetBlockSize = packetSize * 500;
+    static constexpr size_t maxQueueLength = 100;
 
     PacketQueue()
     {
@@ -95,10 +95,11 @@ public:
         bool transportErrorIndicator = !!(packet[1] & 0x80);
         WORD pid = ((packet[1] << 8) | packet[2]) & 0x1fff;
         int adaptationFieldControl = (packet[3] >> 4) & 0x03;
+        bool pcrFlag = false;
         if (!transportErrorIndicator && !!(adaptationFieldControl & 2))
         {
             int adaptationLength = packet[4];
-            bool pcrFlag = !!(packet[5] & 0x10);
+            pcrFlag = !!(packet[5] & 0x10);
             if (adaptationLength >= 6 && pcrFlag)
             {
                 // 参照するPCRのPIDを適当に選ぶ
@@ -134,6 +135,21 @@ public:
         if (acceptPacket)
         {
             this->currentBlock.insert(this->currentBlock.end(), packet, packet + this->packetSize);
+        }
+        else if (pcrFlag)
+        {
+            // 除外されているPIDにPCRが含まれていればPCRのみをキューに加える
+            BYTE pcr_packet[packetSize] = {};
+            pcr_packet[0] = 0x47;
+            // adaptation_field_control=0b10なのでCIは加算されない、0固定で間に合わせる
+            pcr_packet[1] = pid >> 8;
+            pcr_packet[2] = pid & 0xff;
+            pcr_packet[3] = 2 << 4;
+            pcr_packet[4] = packetSize - 5; // adaptation_field_length
+            pcr_packet[5] = 0x10; // PCR
+            memcpy(pcr_packet + 6, packet + 6, 6);
+            memset(pcr_packet + 12, 0xff, sizeof(pcr_packet) - 12);
+            this->currentBlock.insert(this->currentBlock.end(), pcr_packet, pcr_packet + sizeof(pcr_packet));
         }
 
         // PCRが100ミリ秒以上進めばキューに加える
