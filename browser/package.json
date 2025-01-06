@@ -23,6 +23,7 @@
   "devDependencies": {
     "@types/css": "^0.0.33",
     "@types/node": "^18.16.12",
+    "@types/pako": "^2.0.3",
     "ts-loader": "^9.4.2",
     "typescript": "^4.9.5",
     "webpack": "^5.83.1",

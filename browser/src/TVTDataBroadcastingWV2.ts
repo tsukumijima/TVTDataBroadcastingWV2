@@ -1,6 +1,6 @@
-import { ComponentPMT, ResponseMessage } from "../web-bml/server/ws_api";
+import { ComponentPMT, ResponseMessage } from "../web-bml/lib/ws_api";
 import { BMLBrowser, BMLBrowserFontFace, EPG, Indicator, IP, InputApplication, InputCancelReason, InputCharacterType } from "../web-bml/client/bml_browser";
-import { decodeTS } from "../web-bml/server/decode_ts";
+import { decodeTS } from "../web-bml/lib/decode_ts";
 import { CaptionPlayer } from "../web-bml/client/player/caption_player";
 
 declare global {
