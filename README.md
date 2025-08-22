@@ -96,9 +96,9 @@ curl https://raw.githubusercontent.com/googlefonts/kosugi/75171a2738135ab888549e
 
 ```sh
 cd browser
-yarn install
-yarn workspace @chinachu/aribts build
-yarn run build
+npm i
+npm -w @chinachu/aribts run build
+npm run build
 ```
 
 * Plugins/
