@@ -27,7 +27,7 @@ jobs:
        platform: [ x86, x64 ]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v5
       with:
         submodules: 'recursive'
 
@@ -44,7 +44,7 @@ jobs:
           Write-Output "VERSION=$t-$sha-$env:ARCH" >> $env:GITHUB_OUTPUT
 
     - name: Add MSBuild to PATH
-      uses: microsoft/setup-msbuild@v1.1
+      uses: microsoft/setup-msbuild@v2
 
     - name: Restore NuGet packages
       working-directory: ${{env.GITHUB_WORKSPACE}}
@@ -60,27 +60,26 @@ jobs:
       run: |
         msbuild /m /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:PLATFORM "/p:TVTDataBroadcastingWV2Version=L\""$env:VERSION\""" $env:SOLUTION_FILE_PATH
 
-    - uses: actions/setup-node@v3
+    - uses: actions/setup-node@v4
       with:
-        node-version: '16'
-        cache: 'yarn'
-        cache-dependency-path: ./browser/yarn.lock
+        node-version: '22'
+        cache-dependency-path: ./browser/package-lock.json
 
     - name: install npm packages
       working-directory: ./browser/
-      run: yarn install
+      run: npm ci
 
     - name: Build depends
       working-directory: ./browser/
-      run: yarn workspace @chinachu/aribts build
+      run: npm -w @chinachu/aribts run build
 
     - name: Build web-bml
       working-directory: ./browser/
-      run: yarn run build
+      run: npm run build
 
     - name: Cache fonts
       id: cache-fonts
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ./fonts
         key: fonts
@@ -112,7 +111,7 @@ jobs:
           copy browser/TVTDataBroadcastingWV2.html artifact/$dir/TVTDataBroadcastingWV2/resources/
 
     - name: Generate artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.name.outputs.DIR_NAME }}
         path: |
