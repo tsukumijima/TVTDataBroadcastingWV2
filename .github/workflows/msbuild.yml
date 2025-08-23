@@ -97,13 +97,14 @@ jobs:
     - name: Prepare artifact
       env:
         DIR: ${{ steps.name.outputs.DIR_NAME }}
+        PLATFORM: ${{ matrix.PLATFORM }}
       run: |
           $dir="$env:DIR"
           mkdir artifact/$dir/
           copy LICENSE artifact/$dir/TVTDataBroadcastingWV2-LICENSE
           copy LICENSE.nlohmann.json.txt artifact/$dir/TVTDataBroadcastingWV2-LICENSE.json.txt
           copy README.md artifact/$dir/TVTDataBroadcastingWV2-README.txt
-          copy -ErrorAction:SilentlyContinue Release/TVTDataBroadcastingWV2.tvtp artifact/$dir/ || copy x64/Release/TVTDataBroadcastingWV2.tvtp artifact/$dir/
+          copy -ErrorAction:SilentlyContinue Release/TVTDataBroadcastingWV2.tvtp artifact/$dir/ || copy $env:PLATFORM/Release/TVTDataBroadcastingWV2.tvtp artifact/$dir/
           mkdir artifact/$dir/TVTDataBroadcastingWV2/resources/dist/
           copy browser/dist/TVTDataBroadcastingWV2.js artifact/$dir/TVTDataBroadcastingWV2/resources/dist/
           copy fonts/* artifact/$dir/TVTDataBroadcastingWV2/resources/dist/
