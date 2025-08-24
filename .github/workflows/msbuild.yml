@@ -90,8 +90,8 @@ jobs:
           copy -ErrorAction:SilentlyContinue Release/TVTDataBroadcastingWV2.tvtp artifact/$dir/ || copy $env:PLATFORM/Release/TVTDataBroadcastingWV2.tvtp artifact/$dir/
           mkdir artifact/$dir/TVTDataBroadcastingWV2/resources/dist/
           copy browser/dist/TVTDataBroadcastingWV2.js artifact/$dir/TVTDataBroadcastingWV2/resources/dist/
-          copy web-bml/fonts/*.woff2 artifact/$dir/TVTDataBroadcastingWV2/resources/dist/
-          copy web-bml/fonts/LICENSE.txt artifact/$dir/TVTDataBroadcastingWV2/resources/dist/fonts-LICENSE.txt
+          copy browser/web-bml/fonts/*.woff2 artifact/$dir/TVTDataBroadcastingWV2/resources/dist/
+          copy browser/web-bml/fonts/LICENSE.txt artifact/$dir/TVTDataBroadcastingWV2/resources/dist/fonts-LICENSE.txt
           copy browser/dist/TVTDataBroadcastingWV2.js.LICENSE.txt artifact/$dir/TVTDataBroadcastingWV2/resources/dist/
           copy browser/TVTDataBroadcastingWV2.html artifact/$dir/TVTDataBroadcastingWV2/resources/
 
