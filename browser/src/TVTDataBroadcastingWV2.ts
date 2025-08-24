@@ -82,9 +82,9 @@ const videoContainer = browserElement.querySelector(".arib-video-container") as 
 // BML文書が入る要素
 const contentElement = browserElement.querySelector(".data-broadcasting-browser-content") as HTMLElement;
 // BML用フォント
-const roundGothic: BMLBrowserFontFace = { source: "url('../dist/KosugiMaru-Regular.ttf'), url('/rounded-mplus-1m-arib.ttf'), local('MS Gothic')" };
-const boldRoundGothic: BMLBrowserFontFace = { source: "url('../dist/KosugiMaru-Regular.ttf'), url('/rounded-mplus-1m-arib.ttf'), local('MS Gothic')" };
-const squareGothic: BMLBrowserFontFace = { source: "url('../dist/Kosugi-Regular.ttf'), url('/rounded-mplus-1m-arib.ttf'), local('MS Gothic')" };
+const roundGothic: BMLBrowserFontFace = { source: "url('../dist/KosugiMaru-Regular.woff2'), local('MS Gothic')" };
+const boldRoundGothic: BMLBrowserFontFace = { source: "url('../dist/KosugiMaru-Bold.woff2'), local('MS Gothic')" };
+const squareGothic: BMLBrowserFontFace = { source: "url('../dist/Kosugi-Regular.woff2'), local('MS Gothic')" };
 const ccContainer = browserElement.querySelector(".arib-video-cc-container") as HTMLElement;
 const player = new CaptionPlayer(document.createElement("video"), ccContainer);
 // リモコン

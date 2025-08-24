@@ -77,23 +77,6 @@ jobs:
       working-directory: ./browser/
       run: npm run build
 
-    - name: Cache fonts
-      id: cache-fonts
-      uses: actions/cache@v4
-      with:
-        path: ./fonts
-        key: fonts
-
-    - name: Download fonts
-      if: steps.cache-fonts.outputs.cache-hit != 'true'
-      run: |
-        mkdir fonts
-        curl https://raw.githubusercontent.com/googlefonts/kosugi-maru/bd22c671a9ffc10cc4313e6f2fd75f2b86d6b14b/fonts/ttf/KosugiMaru-Regular.ttf -o fonts/KosugiMaru-Regular.ttf
-        curl https://raw.githubusercontent.com/googlefonts/kosugi-maru/b324f10f33b6c075daa3b147d7ace45284f6015a/LICENSE.txt -o fonts/KosugiMaru-Regular-LICENSE.txt
-        curl https://raw.githubusercontent.com/googlefonts/kosugi/75171a2738135ab888549e76a9037e826094f0ce/fonts/ttf/Kosugi-Regular.ttf -o fonts/Kosugi-Regular.ttf
-        curl https://raw.githubusercontent.com/googlefonts/kosugi/04ea738326d9d7ec2389bd6c2989245372de2595/LICENSE.txt -o fonts/Kosugi-Regular-LICENSE.txt
-      shell: cmd
-
     - name: Prepare artifact
       env:
         DIR: ${{ steps.name.outputs.DIR_NAME }}
@@ -107,7 +90,8 @@ jobs:
           copy -ErrorAction:SilentlyContinue Release/TVTDataBroadcastingWV2.tvtp artifact/$dir/ || copy $env:PLATFORM/Release/TVTDataBroadcastingWV2.tvtp artifact/$dir/
           mkdir artifact/$dir/TVTDataBroadcastingWV2/resources/dist/
           copy browser/dist/TVTDataBroadcastingWV2.js artifact/$dir/TVTDataBroadcastingWV2/resources/dist/
-          copy fonts/* artifact/$dir/TVTDataBroadcastingWV2/resources/dist/
+          copy web-bml/fonts/*.woff2 artifact/$dir/TVTDataBroadcastingWV2/resources/dist/
+          copy web-bml/fonts/LICENSE.txt artifact/$dir/TVTDataBroadcastingWV2/resources/dist/fonts-LICENSE.txt
           copy browser/dist/TVTDataBroadcastingWV2.js.LICENSE.txt artifact/$dir/TVTDataBroadcastingWV2/resources/dist/
           copy browser/TVTDataBroadcastingWV2.html artifact/$dir/TVTDataBroadcastingWV2/resources/
 
