@@ -11,7 +11,8 @@
     "buffer": "^6.0.3",
     "crc-32": "^1.2.2",
     "css": "github:otya128/reworkcss-css#b29fc79faf40c8164b20a74ca818c28fab19cf71",
-    "fast-xml-parser": "^4.2.2",
+    "fast-xml-parser": "^4.3.2",
+    "pako": "^2.1.0",
     "process": "^0.11.10",
     "stream-browserify": "^3.0.0",
     "util": "^0.12.5"
