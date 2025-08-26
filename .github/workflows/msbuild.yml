@@ -24,10 +24,10 @@ jobs:
 
     strategy:
       matrix:
-       platform: [ x86, x64 ]
+       platform: [ x86, x64, ARM64 ]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v5
       with:
         submodules: 'recursive'
 
@@ -44,7 +44,7 @@ jobs:
           Write-Output "VERSION=$t-$sha-$env:ARCH" >> $env:GITHUB_OUTPUT
 
     - name: Add MSBuild to PATH
-      uses: microsoft/setup-msbuild@v1.1
+      uses: microsoft/setup-msbuild@v2
 
     - name: Restore NuGet packages
       working-directory: ${{env.GITHUB_WORKSPACE}}
@@ -58,57 +58,41 @@ jobs:
       # Add additional options to the MSBuild command line here (like platform or verbosity level).
       # See https://docs.microsoft.com/visualstudio/msbuild/msbuild-command-line-reference
       run: |
-        msbuild /m /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:PLATFORM "/p:TVTDataBroadcastingWV2Version=L\""$env:VERSION\""" $env:SOLUTION_FILE_PATH
+        msbuild /m /p:Configuration=$env:BUILD_CONFIGURATION /p:Platform=$env:PLATFORM "/p:TVTDataBroadcastingWV2Version=L""$env:VERSION""" $env:SOLUTION_FILE_PATH
 
-    - uses: actions/setup-node@v3
+    - uses: actions/setup-node@v4
       with:
-        node-version: '16'
-        cache: 'yarn'
-        cache-dependency-path: ./browser/yarn.lock
+        node-version: '22'
+        cache-dependency-path: ./browser/package-lock.json
 
     - name: install npm packages
       working-directory: ./browser/
-      run: yarn install
+      run: npm ci
 
     - name: Build web-bml
       working-directory: ./browser/
-      run: yarn run build
-
-    - name: Cache fonts
-      id: cache-fonts
-      uses: actions/cache@v3
-      with:
-        path: ./fonts
-        key: fonts
-
-    - name: Download fonts
-      if: steps.cache-fonts.outputs.cache-hit != 'true'
-      run: |
-        mkdir fonts
-        curl https://raw.githubusercontent.com/googlefonts/kosugi-maru/bd22c671a9ffc10cc4313e6f2fd75f2b86d6b14b/fonts/ttf/KosugiMaru-Regular.ttf -o fonts/KosugiMaru-Regular.ttf
-        curl https://raw.githubusercontent.com/googlefonts/kosugi-maru/b324f10f33b6c075daa3b147d7ace45284f6015a/LICENSE.txt -o fonts/KosugiMaru-Regular-LICENSE.txt
-        curl https://raw.githubusercontent.com/googlefonts/kosugi/75171a2738135ab888549e76a9037e826094f0ce/fonts/ttf/Kosugi-Regular.ttf -o fonts/Kosugi-Regular.ttf
-        curl https://raw.githubusercontent.com/googlefonts/kosugi/04ea738326d9d7ec2389bd6c2989245372de2595/LICENSE.txt -o fonts/Kosugi-Regular-LICENSE.txt
-      shell: cmd
+      run: npm run build
 
     - name: Prepare artifact
       env:
         DIR: ${{ steps.name.outputs.DIR_NAME }}
+        PLATFORM: ${{ matrix.PLATFORM }}
       run: |
           $dir="$env:DIR"
           mkdir artifact/$dir/
           copy LICENSE artifact/$dir/TVTDataBroadcastingWV2-LICENSE
           copy LICENSE.nlohmann.json.txt artifact/$dir/TVTDataBroadcastingWV2-LICENSE.json.txt
           copy README.md artifact/$dir/TVTDataBroadcastingWV2-README.txt
-          copy -ErrorAction:SilentlyContinue Release/TVTDataBroadcastingWV2.tvtp artifact/$dir/ || copy x64/Release/TVTDataBroadcastingWV2.tvtp artifact/$dir/
+          copy -ErrorAction:SilentlyContinue Release/TVTDataBroadcastingWV2.tvtp artifact/$dir/ || copy $env:PLATFORM/Release/TVTDataBroadcastingWV2.tvtp artifact/$dir/
           mkdir artifact/$dir/TVTDataBroadcastingWV2/resources/dist/
           copy browser/dist/TVTDataBroadcastingWV2.js artifact/$dir/TVTDataBroadcastingWV2/resources/dist/
-          copy fonts/* artifact/$dir/TVTDataBroadcastingWV2/resources/dist/
+          copy browser/web-bml/fonts/*.woff2 artifact/$dir/TVTDataBroadcastingWV2/resources/dist/
+          copy browser/web-bml/fonts/LICENSE.txt artifact/$dir/TVTDataBroadcastingWV2/resources/dist/fonts-LICENSE.txt
           copy browser/dist/TVTDataBroadcastingWV2.js.LICENSE.txt artifact/$dir/TVTDataBroadcastingWV2/resources/dist/
           copy browser/TVTDataBroadcastingWV2.html artifact/$dir/TVTDataBroadcastingWV2/resources/
 
     - name: Generate artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.name.outputs.DIR_NAME }}
         path: |
