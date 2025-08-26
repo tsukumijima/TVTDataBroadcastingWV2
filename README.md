@@ -85,19 +85,17 @@ NuGetパッケージを復元しTVTDataBroadcastingWV2.slnをビルド
 git submodule update --init --recursive
 ```
 
-Google Fontsよりフォントをダウンロード 存在しなければ場合ＭＳ ゴシックで代替される
-
-```sh
-curl https://raw.githubusercontent.com/googlefonts/kosugi-maru/bd22c671a9ffc10cc4313e6f2fd75f2b86d6b14b/fonts/ttf/KosugiMaru-Regular.ttf -o browser/dist/KosugiMaru-Regular.ttf
-curl https://raw.githubusercontent.com/googlefonts/kosugi/75171a2738135ab888549e76a9037e826094f0ce/fonts/ttf/Kosugi-Regular.ttf -o browser/dist/Kosugi-Regular.ttf
-```
-
 以下のコマンドでビルド
 
 ```sh
 cd browser
-yarn install
-yarn run build
+npm i
+npm run build
+```
+
+フォントをコピー
+```bat
+copy web-bml\fonts\*.woff2 dist\
 ```
 
 * Plugins/
