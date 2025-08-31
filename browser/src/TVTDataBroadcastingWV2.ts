@@ -604,7 +604,7 @@ function onWebViewMessage(data: ToWebViewMessage, reply: (data: FromWebViewMessa
     }
 }
 
-window.chrome.webview.addEventListener("message", (ev: any) => onWebViewMessage(ev.data as ToWebViewMessage, (window as any).chrome.webview.postMessage));
+window.chrome.webview.addEventListener("message", (ev: any) => onWebViewMessage(ev.data as ToWebViewMessage, window.chrome.webview.postMessage));
 
 window.sendMessage = (data: ToWebViewMessage): FromWebViewMessage | null => {
     let result: FromWebViewMessage | null = null;
